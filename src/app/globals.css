@@ -1,26 +1,200 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/**
+ * Design tokens.
+ *
+ * Warm off-white paper, deep emerald for the society's own identity, and a
+ * marigold accent for festival context. Credit/debit greens and reds are used
+ * only for money direction, never for decoration, so a colour on this screen
+ * always means the same thing.
+ */
+@theme {
+  --color-canvas: #f7f6f2;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f2f0ea;
+
+  --color-ink: #1b1a17;
+  --color-ink-soft: #5b5850;
+  --color-ink-faint: #8d8981;
+  --color-line: #e5e1d8;
+  --color-line-strong: #d3cec2;
+
+  --color-brand: #0e5c4b;
+  --color-brand-deep: #0a4438;
+  --color-brand-soft: #e6f0ed;
+  --color-brand-ink: #0a4438;
+
+  --color-accent: #b8500f;
+  --color-accent-soft: #fdf0e5;
+
+  --color-credit: #0f7a5f;
+  --color-credit-soft: #e6f4ef;
+  --color-debit: #b03a22;
+  --color-debit-soft: #fceeea;
+  --color-warn: #8f6410;
+  --color-warn-soft: #fdf3dd;
+
+  /**
+   * Chart series colours — deliberately NOT the credit/debit pair.
+   *
+   * Two reasons. Green-vs-red cannot clear the red-green colourblindness
+   * threshold (deutan ΔE stays in the 6–8 band however it's tuned), and red for
+   * expenses implies alarm when spending on the festival is the entire point.
+   * This emerald/marigold pair passes all six palette checks against white
+   * (CVD ΔE 11.1, chroma above floor, contrast over 3:1).
+   */
+  --color-series-in: #00806a;
+  --color-series-out: #d97706;
+  --color-series-in-wash: #e3f2ee;
+  --color-series-out-wash: #fdf1e0;
+  /* One hairline step off the surface — solid, never dashed. */
+  --color-grid: #ebe8e0;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 14px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Money and counts must not jitter as they change. */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    /* Room for the fixed mobile tab bar. */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Visible keyboard focus everywhere, without a ring on mouse clicks. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-soft);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+  }
+
+  /* Shared base for the app's inputs; variants are applied per field. */
+  .field {
+    width: 100%;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line-strong);
+    border-radius: 10px;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.9375rem;
+    color: var(--color-ink);
+  }
+
+  .field::placeholder {
+    color: var(--color-ink-faint);
+  }
+
+  .field:focus {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 1px;
+    border-color: var(--color-brand);
+  }
+
+  .field:disabled {
+    background-color: var(--color-surface-sunken);
+    color: var(--color-ink-faint);
+  }
+}
+
+/**
+ * Print rules, so the transparency report can be handed round at a general body
+ * meeting. Navigation, tab bars and action buttons drop out; tables get borders
+ * that survive on paper.
+ */
+@media print {
+  body {
+    background: #fff;
+  }
+
+  header.sticky,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .card {
+    border-color: #bbb;
+    break-inside: avoid;
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}
+
+/* Respect a user's reduced-motion preference for the sheet and lightbox. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-sheet-in {
+  animation: sheet-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-fade-in {
+  animation: fade-in 150ms ease-out;
 }
