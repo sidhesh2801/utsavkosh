@@ -1,6 +1,6 @@
-# Society Register
+# UtsavKosh
 
-A web app for a housing society to run its cultural activities and its money in the open:
+**UtsavKosh** (उत्सव कोष — “festival treasury”) is a web app for a housing society to run its cultural activities and its money in the open:
 donations received, exactly where the funds were spent, what's planned next, and a photo
 gallery of every celebration.
 

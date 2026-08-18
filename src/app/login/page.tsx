@@ -96,8 +96,9 @@ export default function LoginPage() {
             <path d="M9.5 20v-5h5v5" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
           </svg>
         </span>
-        <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">{data.society.name}</h1>
-        <p className="mt-1 text-sm text-ink-soft">
+        <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">UtsavKosh</h1>
+        <p className="mt-1 text-sm font-medium text-ink-soft">{data.society.name}</p>
+        <p className="mt-1.5 text-sm text-ink-soft">
           Cultural activities, funds and photographs — open to every resident.
         </p>
       </div>

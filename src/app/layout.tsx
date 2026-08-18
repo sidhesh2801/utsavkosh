@@ -11,14 +11,14 @@ const geist = Geist({
 
 export const metadata: Metadata = {
   title: {
-    default: "Society Register — cultural activities & funds",
-    template: "%s · Society Register",
+    default: "UtsavKosh — cultural activities & funds",
+    template: "%s · UtsavKosh",
   },
   description:
     "Every rupee collected and spent, every activity planned, and every photograph — open to all residents of the society.",
   appleWebApp: {
     capable: true,
-    title: "Society",
+    title: "UtsavKosh",
     statusBarStyle: "default",
   },
 };

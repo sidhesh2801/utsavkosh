@@ -6,8 +6,9 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Society Register — activities & funds",
-    short_name: "Society",
+    name: "UtsavKosh — activities & funds",
+    // Fits under a home-screen icon without truncating.
+    short_name: "UtsavKosh",
     description:
       "Every rupee collected and spent, every activity planned, and every photograph — open to all residents.",
     start_url: "/",

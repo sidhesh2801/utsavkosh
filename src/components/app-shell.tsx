@@ -127,11 +127,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/" className="flex min-w-0 items-center gap-2.5">
             <SocietyMark />
             <span className="min-w-0">
-              <span className="block truncate text-[0.9375rem] font-semibold leading-tight text-ink">
-                {data.society.name}
+              <span className="block text-[0.9375rem] font-semibold leading-tight text-ink">
+                UtsavKosh
               </span>
-              <span className="block text-[0.6875rem] uppercase tracking-[0.06em] text-ink-faint">
-                Cultural & fund register
+              <span className="block truncate text-[0.6875rem] text-ink-faint">
+                {data.society.name}
               </span>
             </span>
           </Link>
