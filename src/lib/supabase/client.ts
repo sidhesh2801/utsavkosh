@@ -37,11 +37,14 @@ export function getSupabase(): SupabaseClient | null {
  * The database grants `anon` these columns and no others, so a `select *` would
  * fail outright for a signed-out visitor — the list has to be explicit. Keep it
  * in step with the GRANT in supabase/schema.sql.
+ *
+ * Note what is absent: donor_name, wing, flat and donor_mobile. A guest can
+ * audit every rupee but cannot see which household gave what.
  */
 // Typed as `string`, not a literal: supabase-js parses literal select
 // strings to infer row types, and a runtime-chosen list defeats that parser.
 export const PUBLIC_DONATION_COLUMNS: string =
-  "id, receipt_no, donor_name, wing, flat, is_tenant, amount, method, reference, activity_id, received_at, status, recorded_by, verified_at, created_at";
+  "id, receipt_no, amount, method, activity_id, received_at, status, created_at";
 
 /** Everything, for signed-in staff who need the mobile number and notes. */
 export const STAFF_DONATION_COLUMNS: string = "*";

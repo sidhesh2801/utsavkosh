@@ -221,7 +221,9 @@ function Ledger({ limit }: { limit?: number }) {
               </td>
               <td className="py-2 pr-3">
                 <span className="text-ink">
-                  {item.kind === "donation" ? item.entry.donorName : item.entry.title}
+                  {item.kind === "donation"
+                    ? item.entry.donorName || `Contribution ${item.entry.receiptNo}`
+                    : item.entry.title}
                 </span>
                 {item.kind === "donation" && item.entry.status === "pending" ? (
                   <Badge tone="warn" className="ml-2">

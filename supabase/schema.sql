@@ -5,10 +5,11 @@
 --
 -- Two ideas drive the whole design:
 --
---  1. The ledger is PUBLIC. Residents read the accounts and their receipts with
---     no login, so `anon` gets SELECT on the money tables. But a public ledger
---     must not leak personal data, so anon is granted only the *columns* that
---     belong on a notice board — never donor_mobile, never a member's e-mail.
+--  1. The MONEY is public; the DONORS are not. Residents read the accounts with
+--     no login, so `anon` gets SELECT on the money tables — but only the columns
+--     that carry amounts, dates and what the money was for. Donor names, flats,
+--     phone numbers and UPI references are staff-only. So a resident can audit
+--     every rupee without being able to see what their neighbour gave.
 --     Column-level GRANTs do that, which is why the app selects explicit column
 --     lists instead of `select *`.
 --
@@ -413,10 +414,12 @@ revoke all on public.donations   from anon;
 revoke all on public.members     from anon;
 revoke all on public.payment_qrs from anon;
 
+-- Donor identity is NOT public. Guests see every amount, date, method and the
+-- festival it was for — enough to audit the money — but not who gave what, and
+-- not a phone number or UPI reference. Only signed-in staff read those, because
+-- they need them to issue receipts.
 grant select (
-  id, receipt_no, donor_name, wing, flat, is_tenant, amount, method,
-  reference, activity_id, received_at, status, recorded_by, verified_at,
-  created_at
+  id, receipt_no, amount, method, activity_id, received_at, status, created_at
 ) on public.donations to anon;
 
 grant select on public.societies  to anon;

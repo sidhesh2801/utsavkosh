@@ -42,7 +42,11 @@ export function fundSummary(donations: Donation[], expenses: Expense[]): FundSum
     donationCount: donations.length,
     pendingCount: pending(donations).length,
     expenseCount: expenses.length,
-    donorCount: new Set(donations.map((d) => d.donorName.toLowerCase())).size,
+    // Guests are not served donor names, so only count the ones we actually
+    // have — otherwise every anonymous row would collapse into one "donor".
+    donorCount: new Set(
+      donations.map((d) => d.donorName.trim().toLowerCase()).filter(Boolean),
+    ).size,
   };
 }
 

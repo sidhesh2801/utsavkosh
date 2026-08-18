@@ -118,7 +118,8 @@ export default function LoginPage() {
           Are you a resident? You don&apos;t need an account.
         </p>
         <p className="mt-1 text-xs leading-relaxed text-brand-ink/80">
-          The society&apos;s accounts, the photo gallery and your receipt are open to everyone.
+          The society&apos;s accounts and the photo gallery are open to everyone. For a copy of
+          your own receipt, ask any committee member.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link
@@ -126,12 +127,6 @@ export default function LoginPage() {
             className="rounded-[10px] bg-brand px-3 py-2 text-[0.8125rem] font-medium text-white transition-colors hover:bg-brand-deep"
           >
             See the accounts
-          </Link>
-          <Link
-            href="/receipt"
-            className="rounded-[10px] border border-brand/30 px-3 py-2 text-[0.8125rem] font-medium text-brand-ink transition-colors hover:bg-white/60"
-          >
-            Find my receipt
           </Link>
           <Link
             href="/gallery"

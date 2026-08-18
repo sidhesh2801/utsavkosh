@@ -95,6 +95,7 @@ const NAV: NavItem[] = [
         <path d="M9.5 8h5M9.5 12h5" />
       </>,
     ),
+    adminOrVolunteerOnly: true,
   },
 ];
 
@@ -102,11 +103,15 @@ const roleLabel = { admin: "Committee admin", volunteer: "Volunteer", resident: 
 const roleTone = { admin: "brand", volunteer: "accent", resident: "neutral" } as const;
 
 /**
- * Screens that require a login. Everything else — the accounts, the gallery,
- * receipt lookup — is deliberately open, so 1800 residents never have to
- * register to see where the money went.
+ * Screens that require a login.
+ *
+ * The accounts, activities and gallery stay open so 1800 residents never have to
+ * register to see where the money went. Receipt lookup is NOT open: it searches
+ * by name and flat, which would let anyone read what a particular household
+ * gave. The database enforces this too — donor columns are revoked from `anon`,
+ * so hiding the page is defence in depth rather than the actual control.
  */
-const PRIVATE_PREFIXES = ["/collect", "/admin"];
+const PRIVATE_PREFIXES = ["/collect", "/admin", "/receipt"];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { session, ready, data, signOut, isAdmin, canCollect } = useSociety();

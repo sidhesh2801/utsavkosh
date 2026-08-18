@@ -48,15 +48,9 @@ export default function HomePage() {
         </h1>
         {!session ? (
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
-            Every rupee collected and every rupee spent is listed here, open to all residents — no
-            sign-in needed.{" "}
-            <Link
-              href="/receipt"
-              className="text-brand underline decoration-brand/30 underline-offset-2"
-            >
-              Find your receipt
-            </Link>
-            .
+            Every rupee collected and every rupee spent is listed here, open to all residents —
+            no sign-in needed. Contributor names are kept private; for a copy of your own receipt,
+            ask any committee member.
           </p>
         ) : null}
       </div>
@@ -71,8 +65,8 @@ export default function HomePage() {
             {money(summary.balance)}
           </p>
           <p className="mt-2 text-[0.8125rem] leading-snug text-brand-ink/80">
-            {money(summary.collected)} collected, {money(summary.spent)} spent, across{" "}
-            {summary.donorCount} contributing families.
+            {money(summary.collected)} collected, {money(summary.spent)} spent
+            {summary.donorCount > 0 ? `, across ${summary.donorCount} contributing families` : ""}.
           </p>
         </div>
         <div className="grid grid-cols-2 divide-x divide-line border-b border-line sm:grid-cols-3 sm:divide-x">
@@ -272,7 +266,9 @@ export default function HomePage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[0.8125rem] text-ink">
                     {item.kind === "donation"
-                      ? item.entry.donorName
+                      ? // Guests can't read donor names, so fall back to the
+                        // receipt number rather than showing an empty row.
+                        item.entry.donorName || `Contribution ${item.entry.receiptNo}`
                       : item.entry.title}
                   </p>
                   <p className="tnum text-[0.6875rem] text-ink-faint">{shortDate(item.date)}</p>
