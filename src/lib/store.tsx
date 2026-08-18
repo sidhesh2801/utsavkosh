@@ -47,7 +47,7 @@ interface SocietyStore {
   data: SocietyData;
   session: Member | null;
   isAdmin: boolean;
-  /** Admins and volunteer collectors may both record collections. */
+  /** Admins and volunteers may both record collections. */
   canCollect: boolean;
 
   signIn(email: string, password: string): Promise<Result>;
@@ -63,7 +63,7 @@ interface SocietyStore {
   /** Undo a verification that was marked in error. */
   unverifyDonation(id: string): Promise<Result>;
   /** Confirm every pending entry from one volunteer at handover time. */
-  verifyAllFrom(collectorId: string, activityId?: string | null): Promise<Result<number>>;
+  verifyAllFrom(volunteerId: string, activityId?: string | null): Promise<Result<number>>;
   /** Records that the receipt has been sent, so the list can show what's left. */
   markReceiptSent(id: string): Promise<Result>;
   /**
@@ -317,10 +317,10 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   /** Guards collection entry, which volunteers may also do. */
-  const requireCollector = useCallback((): Result => {
+  const requireVolunteer = useCallback((): Result => {
     if (!session) return fail("Please sign in first.");
     if (session.role === "resident") {
-      return fail("Only committee admins and volunteer collectors can record collections.");
+      return fail("Only committee admins and volunteers can record collections.");
     }
     return ok(undefined);
   }, [session]);
@@ -351,8 +351,8 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
     function mayAmendDonation(donation: Donation): Result {
       if (!session) return fail("Please sign in first.");
       if (session.role === "admin") return ok(undefined);
-      if (session.role !== "collector") {
-        return fail("Only committee admins and volunteer collectors can change collections.");
+      if (session.role !== "volunteer") {
+        return fail("Only committee admins and volunteers can change collections.");
       }
       if (donation.recordedBy !== session.id) {
         return fail("You can only change the entries you recorded yourself.");
@@ -383,13 +383,20 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
       data,
       session,
       isAdmin: session?.role === "admin",
-      canCollect: session?.role === "admin" || session?.role === "collector",
+      canCollect: session?.role === "admin" || session?.role === "volunteer",
 
       async signIn(email, password) {
         const normalised = email.trim().toLowerCase();
         const member = data.members.find((m) => m.email.toLowerCase() === normalised);
         if (!member || member.password !== password) {
           return fail("That email and password don't match any account.");
+        }
+        // Only the committee and volunteers have logins; residents use the open
+        // accounts, gallery and receipt pages instead.
+        if (member.role === "resident") {
+          return fail(
+            "Residents don't need to sign in — the accounts, gallery and receipts are open to everyone. Use the links below.",
+          );
         }
         if (member.status === "pending") {
           return fail(
@@ -433,7 +440,7 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
       },
 
       async addDonation(input) {
-        const guard = requireCollector();
+        const guard = requireVolunteer();
         if (!guard.ok) return guard;
         if (!input.donorName.trim()) return fail("Please enter the donor's name.");
         if (!(input.amount > 0)) return fail("Amount must be more than zero.");
@@ -552,7 +559,7 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
       },
 
       async markReceiptSent(id) {
-        const guard = requireCollector();
+        const guard = requireVolunteer();
         if (!guard.ok) return guard;
         setData((prev) => ({
           ...prev,
@@ -602,11 +609,11 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
         return ok(undefined);
       },
 
-      async verifyAllFrom(collectorId, activityId) {
+      async verifyAllFrom(volunteerId, activityId) {
         const guard = requireAdmin();
         if (!guard.ok) return guard;
         const matches = (d: Donation) =>
-          d.recordedBy === collectorId &&
+          d.recordedBy === volunteerId &&
           d.status === "pending" &&
           (activityId === undefined || d.activityId === activityId);
         const count = data.donations.filter(matches).length;
@@ -772,7 +779,7 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
       }));
       return ok(undefined);
     }
-  }, [data, ready, session, requireAdmin, requireCollector, persistSession]);
+  }, [data, ready, session, requireAdmin, requireVolunteer, persistSession]);
 
   return <SocietyContext.Provider value={store}>{children}</SocietyContext.Provider>;
 }

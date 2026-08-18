@@ -21,6 +21,13 @@ export const metadata: Metadata = {
     title: "UtsavKosh",
     statusBarStyle: "default",
   },
+  /**
+   * The accounts and receipts are open to residents without a login, which
+   * means donor names and amounts sit on a public URL. That's how a notice
+   * board works, but a search engine is a different matter — so the app asks
+   * not to be indexed. Anyone with the link still gets in.
+   */
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {

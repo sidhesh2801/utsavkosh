@@ -1,30 +1,29 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSociety } from "@/lib/store";
 import { DEMO_LOGINS } from "@/lib/seed";
 import { Button, Field, Skeleton } from "@/components/ui";
 
-type Mode = "signin" | "signup";
-
+/**
+ * Only two kinds of account exist: committee admins and volunteers.
+ *
+ * Residents deliberately have no login — the accounts, gallery and receipt
+ * lookup are open to everyone, so there's nothing for 1800 households to
+ * register for and no approval queue for the committee to work through.
+ */
 export default function LoginPage() {
-  const { session, ready, data, signIn, signUp } = useSociety();
+  const { session, ready, data, signIn } = useSociety();
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("signin");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [wing, setWing] = useState("");
-  const [flat, setFlat] = useState("");
 
   useEffect(() => {
-    if (ready && session) router.replace("/");
+    if (ready && session) router.replace("/collect");
   }, [ready, session, router]);
 
   if (!ready) {
@@ -36,44 +35,19 @@ export default function LoginPage() {
     );
   }
 
-  const wings = data.society.wings;
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setNotice(null);
     setBusy(true);
-    try {
-      if (mode === "signin") {
-        const result = await signIn(email, password);
-        if (!result.ok) setError(result.error);
-        else router.replace("/");
-      } else {
-        const result = await signUp({ name, email, mobile, wing, flat, password });
-        if (!result.ok) {
-          setError(result.error);
-        } else {
-          setMode("signin");
-          setNotice(
-            "Account created. A committee admin needs to approve it before you can sign in — you'll usually hear back within a day.",
-          );
-          setName("");
-          setMobile("");
-          setWing("");
-          setFlat("");
-          setPassword("");
-        }
-      }
-    } finally {
-      setBusy(false);
-    }
+    const result = await signIn(email, password);
+    setBusy(false);
+    if (!result.ok) setError(result.error);
+    else router.replace("/collect");
   }
 
   /** Not named `use…` — that prefix makes lint treat it as a React hook. */
   function applyDemoLogin(login: { email: string; password: string }) {
-    setMode("signin");
     setError(null);
-    setNotice(null);
     setEmail(login.email);
     setPassword(login.password);
   }
@@ -99,103 +73,12 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">UtsavKosh</h1>
         <p className="mt-1 text-sm font-medium text-ink-soft">{data.society.name}</p>
         <p className="mt-1.5 text-sm text-ink-soft">
-          Cultural activities, funds and photographs — open to every resident.
+          Sign in to record collections and manage the society&apos;s accounts.
         </p>
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="flex border-b border-line" role="tablist">
-          {(
-            [
-              ["signin", "Sign in"],
-              ["signup", "Register your flat"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={mode === value}
-              onClick={() => {
-                setMode(value);
-                setError(null);
-                setNotice(null);
-              }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                mode === value
-                  ? "bg-brand-soft text-brand-ink"
-                  : "text-ink-soft hover:bg-surface-sunken"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={submit} className="space-y-3.5 p-5">
-          {mode === "signup" ? (
-            <>
-              <Field label="Your full name" required>
-                <input
-                  className="field"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  autoComplete="name"
-                  placeholder="e.g. Sunil Kulkarni"
-                />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Wing" required>
-                  {wings.length ? (
-                    <select
-                      className="field"
-                      value={wing}
-                      onChange={(e) => setWing(e.target.value)}
-                      required
-                    >
-                      <option value="">Select</option>
-                      {wings.map((w) => (
-                        <option key={w} value={w}>
-                          {w}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      className="field"
-                      value={wing}
-                      onChange={(e) => setWing(e.target.value)}
-                      required
-                      placeholder="A"
-                    />
-                  )}
-                </Field>
-                <Field label="Flat number" required>
-                  <input
-                    className="field"
-                    value={flat}
-                    onChange={(e) => setFlat(e.target.value)}
-                    required
-                    inputMode="numeric"
-                    placeholder="305"
-                  />
-                </Field>
-              </div>
-              <Field label="Mobile number" hint="So the committee can reach you." required>
-                <input
-                  className="field"
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  required
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="98200 11234"
-                />
-              </Field>
-            </>
-          ) : null}
-
+      <div className="card p-5">
+        <form onSubmit={submit} className="space-y-3.5">
           <Field label="Email address" required>
             <input
               className="field"
@@ -208,18 +91,14 @@ export default function LoginPage() {
             />
           </Field>
 
-          <Field
-            label="Password"
-            hint={mode === "signup" ? "At least 6 characters." : undefined}
-            required
-          >
+          <Field label="Password" required>
             <input
               className="field"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               type="password"
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              autoComplete="current-password"
               placeholder="••••••••"
             />
           </Field>
@@ -232,43 +111,60 @@ export default function LoginPage() {
               {error}
             </p>
           ) : null}
-          {notice ? (
-            <p
-              role="status"
-              className="rounded-lg bg-brand-soft px-3 py-2.5 text-[0.8125rem] leading-snug text-brand-ink"
-            >
-              {notice}
-            </p>
-          ) : null}
 
           <Button type="submit" size="lg" className="w-full" disabled={busy}>
-            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+            {busy ? "Please wait…" : "Sign in"}
           </Button>
-
-          {mode === "signup" ? (
-            <p className="text-xs leading-relaxed text-ink-faint">
-              New registrations are held for committee approval, so only residents of{" "}
-              {data.society.name} can get in.
-            </p>
-          ) : null}
         </form>
+
+        <p className="mt-4 border-t border-line pt-4 text-xs leading-relaxed text-ink-faint">
+          Accounts are created by the committee. If you&apos;re volunteering for the collection
+          and need access, ask a committee admin to add you.
+        </p>
+      </div>
+
+      {/* Residents shouldn't hit a dead end here. */}
+      <div className="mt-5 rounded-xl bg-brand-soft px-4 py-4">
+        <p className="text-[0.8125rem] font-medium text-brand-ink">
+          Are you a resident? You don&apos;t need an account.
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-brand-ink/80">
+          The society&apos;s accounts, the photo gallery and your receipt are open to everyone.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/funds"
+            className="rounded-[10px] bg-brand px-3 py-2 text-[0.8125rem] font-medium text-white transition-colors hover:bg-brand-deep"
+          >
+            See the accounts
+          </Link>
+          <Link
+            href="/receipt"
+            className="rounded-[10px] border border-brand/30 px-3 py-2 text-[0.8125rem] font-medium text-brand-ink transition-colors hover:bg-white/60"
+          >
+            Find my receipt
+          </Link>
+          <Link
+            href="/gallery"
+            className="rounded-[10px] border border-brand/30 px-3 py-2 text-[0.8125rem] font-medium text-brand-ink transition-colors hover:bg-white/60"
+          >
+            Photo gallery
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 rounded-xl border border-dashed border-line-strong px-4 py-4">
-        <p className="text-[0.8125rem] font-medium text-ink">Try it without signing up</p>
-        <p className="mt-1 text-xs leading-relaxed text-ink-soft">
-          This is sample data for a fictional society. Sign in as any of the three roles to see
-          what each one can do.
-        </p>
+        <p className="text-[0.8125rem] font-medium text-ink">Try it with sample data</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => applyDemoLogin(DEMO_LOGINS.admin)}>
             Committee admin
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => applyDemoLogin(DEMO_LOGINS.collector)}>
-            Volunteer collector
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => applyDemoLogin(DEMO_LOGINS.resident)}>
-            Resident
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => applyDemoLogin(DEMO_LOGINS.volunteer)}
+          >
+            Volunteer
           </Button>
         </div>
       </div>

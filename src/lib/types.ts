@@ -8,10 +8,10 @@
 
 /**
  * - `admin`     — committee: full control of funds, activities and gallery
- * - `collector` — volunteer: may record collections only, nothing else
+ * - `volunteer` — volunteer: may record collections only, nothing else
  * - `resident`  — may view everything, change nothing
  */
-export type Role = "admin" | "collector" | "resident";
+export type Role = "admin" | "volunteer" | "resident";
 
 /** A resident's account is not usable until an admin approves it. */
 export type MemberStatus = "pending" | "approved" | "rejected";
@@ -110,7 +110,7 @@ export interface Donation {
   proofPhotoId?: string;
   /** Populated at load; not persisted with the record. */
   proofSrc?: string | null;
-  /** Member id of whoever entered this — admin or volunteer collector. */
+  /** Member id of whoever entered this — admin or volunteer. */
   recordedBy: string;
   status: VerificationStatus;
   /** Admin who confirmed the handover, and when. Empty while pending. */

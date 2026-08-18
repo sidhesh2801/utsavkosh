@@ -26,8 +26,7 @@ const DEMO_PASSWORD = "demo1234";
 
 export const DEMO_LOGINS = {
   admin: { email: "secretary@wellingtonpwc.in", password: DEMO_PASSWORD },
-  collector: { email: "vikram.c@example.com", password: DEMO_PASSWORD },
-  resident: { email: "sunil.k@example.com", password: DEMO_PASSWORD },
+  volunteer: { email: "vikram.c@example.com", password: DEMO_PASSWORD },
 };
 
 const members: Member[] = [
@@ -110,8 +109,8 @@ const members: Member[] = [
     mobile: "97690 22345",
     wing: "C",
     flat: "204",
-    // Volunteer collectors record door-to-door collections on their own phones.
-    role: "collector",
+    // Volunteers record door-to-door collections on their own phones.
+    role: "volunteer",
     status: "approved",
     joinedAt: "2023-02-14",
     password: DEMO_PASSWORD,
@@ -147,7 +146,7 @@ const members: Member[] = [
     mobile: "70450 12398",
     wing: "B",
     flat: "1201",
-    role: "collector",
+    role: "volunteer",
     status: "approved",
     joinedAt: "2024-01-08",
     password: DEMO_PASSWORD,
@@ -159,7 +158,7 @@ const members: Member[] = [
     mobile: "98334 55011",
     wing: "C",
     flat: "608",
-    role: "collector",
+    role: "volunteer",
     status: "approved",
     joinedAt: "2024-09-21",
     password: DEMO_PASSWORD,
@@ -705,7 +704,7 @@ const albumSeeds: Array<{
 ];
 
 /**
- * The Janmashtami drive is the one currently running, so it shows the collector
+ * The Janmashtami drive is the one currently running, so it shows the volunteer
  * workflow mid-flight: some entries already verified by the treasurer, some
  * still sitting with the volunteer who collected the cash.
  */

@@ -101,7 +101,7 @@ export function collectionRequestMessage(
   society: SocietyData["society"],
   activity: Activity,
   fin: ActivityFinance,
-  collectorNames: string[],
+  volunteerNames: string[],
   url?: string,
 ): string {
   return (
@@ -114,7 +114,7 @@ export function collectionRequestMessage(
       `Collected so far: ${money(fin.pledged)} (${fin.fundedPct}%)`,
       ``,
       `*How to contribute*`,
-      `• Hand cash to any of our volunteers: ${collectorNames.join(", ")}`,
+      `• Hand cash to any of our volunteers: ${volunteerNames.join(", ")}`,
       `• Or pay by UPI and share the reference with them`,
       ``,
       `Every contribution is entered in the app the moment it is received, and every rupee spent is listed with its bill. Do have a look 👇`,
@@ -143,13 +143,13 @@ export function albumMessage(
 
 /** Handover reminder for a volunteer sitting on collected cash. */
 export function handoverReminderMessage(
-  collectorName: string,
+  volunteerName: string,
   amount: number,
   count: number,
   activityTitle: string,
 ): string {
   return [
-    `Hello ${collectorName} 🙏`,
+    `Hello ${volunteerName} 🙏`,
     ``,
     `Our records show ${money(amount)} from ${count} ${count === 1 ? "flat" : "flats"} collected by you for *${activityTitle}*, pending handover to the treasurer.`,
     ``,

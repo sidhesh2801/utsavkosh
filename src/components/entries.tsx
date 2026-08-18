@@ -435,7 +435,7 @@ export function DonationForm({
 
         {session && !isAdmin ? (
           <p className="rounded-lg bg-warn-soft px-3 py-2.5 text-xs leading-relaxed text-warn">
-            You&apos;re recording as a volunteer collector. Hand the cash to the treasurer and
+            You&apos;re recording as a volunteer. Hand the cash to the treasurer and
             they&apos;ll mark it verified — only then does it count towards the society balance.
           </p>
         ) : null}

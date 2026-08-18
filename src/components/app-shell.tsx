@@ -13,7 +13,7 @@ interface NavItem {
   /** Shorter label for the cramped mobile tab bar. */
   short: string;
   icon: ReactNode;
-  adminOrCollectorOnly?: boolean;
+  adminOrVolunteerOnly?: boolean;
 }
 
 const icon = (path: ReactNode) => (
@@ -60,7 +60,7 @@ const NAV: NavItem[] = [
         <path d="M12 8v8M8 12h8" />
       </>,
     ),
-    adminOrCollectorOnly: true,
+    adminOrVolunteerOnly: true,
   },
   {
     href: "/activities",
@@ -85,20 +85,39 @@ const NAV: NavItem[] = [
       </>,
     ),
   },
+  {
+    href: "/receipt",
+    label: "Find a receipt",
+    short: "Receipt",
+    icon: icon(
+      <>
+        <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+        <path d="M9.5 8h5M9.5 12h5" />
+      </>,
+    ),
+  },
 ];
 
-const roleLabel = { admin: "Committee admin", collector: "Volunteer collector", resident: "Resident" };
-const roleTone = { admin: "brand", collector: "accent", resident: "neutral" } as const;
+const roleLabel = { admin: "Committee admin", volunteer: "Volunteer", resident: "Resident" };
+const roleTone = { admin: "brand", volunteer: "accent", resident: "neutral" } as const;
+
+/**
+ * Screens that require a login. Everything else — the accounts, the gallery,
+ * receipt lookup — is deliberately open, so 1800 residents never have to
+ * register to see where the money went.
+ */
+const PRIVATE_PREFIXES = ["/collect", "/admin"];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { session, ready, data, signOut, isAdmin, canCollect } = useSociety();
   const pathname = usePathname();
   const router = useRouter();
 
-  // Public routes render themselves; everything else needs a signed-in member.
+  const needsLogin = PRIVATE_PREFIXES.some((p) => pathname.startsWith(p));
+
   useEffect(() => {
-    if (ready && !session) router.replace("/login");
-  }, [ready, session, router]);
+    if (ready && !session && needsLogin) router.replace("/login");
+  }, [ready, session, needsLogin, router]);
 
   if (!ready) {
     return (
@@ -114,9 +133,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!session) return null;
+  if (!session && needsLogin) return null;
 
-  const items = NAV.filter((n) => !n.adminOrCollectorOnly || canCollect);
+  const items = NAV.filter((n) => !n.adminOrVolunteerOnly || canCollect);
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
@@ -136,13 +155,22 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <div className="ml-auto">
-            <AccountMenu
-              name={session.name}
-              detail={flatLabel(session.wing, session.flat)}
-              role={session.role}
-              isAdmin={isAdmin}
-              onSignOut={signOut}
-            />
+            {session ? (
+              <AccountMenu
+                name={session.name}
+                detail={flatLabel(session.wing, session.flat)}
+                role={session.role}
+                isAdmin={isAdmin}
+                onSignOut={signOut}
+              />
+            ) : (
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 rounded-[10px] border border-line-strong px-3 py-2 text-[0.8125rem] font-medium text-ink transition-colors hover:bg-surface-sunken"
+              >
+                Committee sign in
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -248,7 +276,7 @@ function AccountMenu({
 }: {
   name: string;
   detail: string;
-  role: "admin" | "collector" | "resident";
+  role: "admin" | "volunteer" | "resident";
   isAdmin: boolean;
   onSignOut: () => void;
 }) {
@@ -278,7 +306,7 @@ function AccountMenu({
         aria-haspopup="menu"
         className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition-colors hover:bg-surface-sunken"
       >
-        <Avatar name={name} tone={role === "collector" ? "accent" : "brand"} />
+        <Avatar name={name} tone={role === "volunteer" ? "accent" : "brand"} />
         <span className="hidden text-left sm:block">
           <span className="block text-[0.8125rem] font-medium leading-tight text-ink">{name}</span>
           <span className="block text-[0.6875rem] leading-tight text-ink-faint">{detail}</span>

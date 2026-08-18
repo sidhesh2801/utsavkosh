@@ -19,7 +19,7 @@ import type { Member, Role } from "@/lib/types";
 
 const roleLabel: Record<Role, string> = {
   admin: "Committee admin",
-  collector: "Volunteer collector",
+  volunteer: "Volunteer",
   resident: "Resident",
 };
 
@@ -78,7 +78,7 @@ export default function AdminPage() {
           </ul>
         </Card>
         <p className="mt-2 text-xs leading-relaxed text-ink-faint">
-          Volunteer collectors can record contributions but cannot edit expenses, delete entries, or
+          Volunteers can record contributions but cannot edit expenses, delete entries, or
           verify their own handovers. Committee admins can do everything.
         </p>
       </section>
@@ -156,7 +156,7 @@ function MemberRow({ member }: { member: Member }) {
     <li className="flex flex-wrap items-center gap-3 px-4 py-3">
       <Avatar
         name={member.name}
-        tone={member.role === "admin" ? "brand" : member.role === "collector" ? "accent" : "neutral"}
+        tone={member.role === "admin" ? "brand" : member.role === "volunteer" ? "accent" : "neutral"}
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-ink">

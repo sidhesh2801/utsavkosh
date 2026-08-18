@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useSociety } from "@/lib/store";
 import {
   activityFinance,
-  collectorTotals,
+  volunteerTotals,
   contributedFlats,
   upcomingActivities,
 } from "@/lib/finance";
@@ -57,7 +57,7 @@ function CollectScreen() {
     return (
       <EmptyState
         title="Collections are recorded by the committee and volunteers"
-        description="If you'd like to help with the door-to-door collection, ask a committee admin to make you a volunteer collector."
+        description="If you'd like to help with the door-to-door collection, ask a committee admin to make you a volunteer."
       />
     );
   }
@@ -67,7 +67,7 @@ function CollectScreen() {
     ? data.donations.filter((d) => d.activityId === activity.id)
     : [];
   const fin = activity ? activityFinance(activity, data.donations, data.expenses) : null;
-  const totals = collectorTotals(driveDonations);
+  const totals = volunteerTotals(driveDonations);
 
   const myEntries = driveDonations.filter((d) => d.recordedBy === session?.id);
   const myPending = myEntries.filter((d) => d.status === "pending");
@@ -140,7 +140,7 @@ function CollectScreen() {
                   activity,
                   fin,
                   data.members
-                    .filter((m) => m.role === "collector" && m.status === "approved")
+                    .filter((m) => m.role === "volunteer" && m.status === "approved")
                     .map((m) => m.name.split(" ")[0]),
                 )}
               />
@@ -191,8 +191,8 @@ function CollectScreen() {
               <Card>
                 <ul className="divide-y divide-line">
                   {totals.map((t) => (
-                    <CollectorRow
-                      key={t.collectorId}
+                    <VolunteerRow
+                      key={t.volunteerId}
                       total={t}
                       activityId={activity.id}
                       activityTitle={activity.title}
@@ -240,20 +240,20 @@ function CollectScreen() {
   );
 }
 
-function CollectorRow({
+function VolunteerRow({
   total,
   activityId,
   activityTitle,
 }: {
-  total: ReturnType<typeof collectorTotals>[number];
+  total: ReturnType<typeof volunteerTotals>[number];
   activityId: string;
   activityTitle: string;
 }) {
   const { data, isAdmin, verifyAllFrom, session } = useSociety();
   const toast = useToast();
-  const member = data.members.find((m) => m.id === total.collectorId);
+  const member = data.members.find((m) => m.id === total.volunteerId);
   const name = member?.name ?? "Unknown";
-  const isMe = total.collectorId === session?.id;
+  const isMe = total.volunteerId === session?.id;
 
   return (
     <li className="flex flex-wrap items-center gap-3 px-4 py-3">
@@ -306,7 +306,7 @@ function CollectorRow({
           <Button
             size="sm"
             onClick={async () => {
-              const r = await verifyAllFrom(total.collectorId, activityId);
+              const r = await verifyAllFrom(total.volunteerId, activityId);
               toast(
                 r.ok ? `Confirmed ${r.value} entries from ${name}.` : r.error,
                 r.ok ? "success" : "error",

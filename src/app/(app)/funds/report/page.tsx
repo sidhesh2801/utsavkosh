@@ -241,7 +241,7 @@ export default function ReportPage() {
               </thead>
               <tbody>
                 {pendingEntries.map((d) => {
-                  const collector = data.members.find((m) => m.id === d.recordedBy);
+                  const volunteer = data.members.find((m) => m.id === d.recordedBy);
                   return (
                     <tr key={d.id} className="border-b border-line last:border-0">
                       <td className="tnum px-4 py-2 text-ink-soft">{shortDate(d.receivedAt)}</td>
@@ -251,7 +251,7 @@ export default function ReportPage() {
                           {flatLabel(d.wing, d.flat)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-ink-soft">{collector?.name ?? "—"}</td>
+                      <td className="px-3 py-2 text-ink-soft">{volunteer?.name ?? "—"}</td>
                       <td className="tnum px-4 py-2 text-right font-medium text-warn">
                         {money(d.amount)}
                       </td>

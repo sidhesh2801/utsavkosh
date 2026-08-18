@@ -40,10 +40,25 @@ export default function HomePage() {
   return (
     <div className="space-y-7">
       <div>
-        <p className="text-sm text-ink-soft">Namaste, {firstName} 🙏</p>
+        <p className="text-sm text-ink-soft">
+          {session ? `Namaste, ${firstName} 🙏` : `Namaste 🙏 · ${data.society.name}`}
+        </p>
         <h1 className="mt-0.5 text-[1.375rem] font-semibold tracking-[-0.01em] text-ink sm:text-2xl">
           Here&apos;s where the society stands today
         </h1>
+        {!session ? (
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
+            Every rupee collected and every rupee spent is listed here, open to all residents — no
+            sign-in needed.{" "}
+            <Link
+              href="/receipt"
+              className="text-brand underline decoration-brand/30 underline-offset-2"
+            >
+              Find your receipt
+            </Link>
+            .
+          </p>
+        ) : null}
       </div>
 
       {/* Hero figure — exactly one per view. */}

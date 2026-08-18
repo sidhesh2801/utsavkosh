@@ -46,8 +46,8 @@ export function fundSummary(donations: Donation[], expenses: Expense[]): FundSum
   };
 }
 
-export interface CollectorTotal {
-  collectorId: string;
+export interface VolunteerTotal {
+  volunteerId: string;
   /** Verified handovers. */
   verifiedAmount: number;
   /** Cash still in this volunteer's hands. */
@@ -61,11 +61,11 @@ export interface CollectorTotal {
  * Per-volunteer collection totals for a drive — the live leaderboard, and more
  * importantly the "who owes the treasurer how much cash" list.
  */
-export function collectorTotals(donations: Donation[]): CollectorTotal[] {
-  const buckets = new Map<string, CollectorTotal>();
+export function volunteerTotals(donations: Donation[]): VolunteerTotal[] {
+  const buckets = new Map<string, VolunteerTotal>();
   for (const d of donations) {
     const bucket = buckets.get(d.recordedBy) ?? {
-      collectorId: d.recordedBy,
+      volunteerId: d.recordedBy,
       verifiedAmount: 0,
       pendingAmount: 0,
       total: 0,
