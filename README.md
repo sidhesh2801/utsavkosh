@@ -4,7 +4,7 @@
 donations received, exactly where the funds were spent, what's planned next, and a photo
 gallery of every celebration.
 
-Built for **Shantiniketan Heights CHS** (sample data) — replace it with your own society
+Set up for **Wellington — Pride World City** (with sample data) — replace it with your own records
 from **Manage → Starting with your own society**.
 
 ---
@@ -16,14 +16,28 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-Sign in with one of the three sample accounts (the login screen has buttons that fill
-these in for you). Password for all of them: `demo1234`
+### Who signs in, and who doesn't
 
-| Role | Email | Can do |
+**Only two kinds of account exist.** Residents have no login at all — with 1800 flats,
+requiring 1800 signups (and an approval queue for the committee to work through) would
+kill adoption before the first festival.
+
+| | Signs in? | Can do |
 |---|---|---|
-| Committee admin | `secretary@shantiniketan.in` | Everything: funds, expenses, activities, gallery, approving members |
-| Volunteer collector | `vikram.c@example.com` | Record contributions only — cannot edit expenses or verify handovers |
-| Resident | `sunil.k@example.com` | View everything, change nothing |
+| **Committee admin** — `secretary@wellingtonpwc.in` | Yes | Everything: funds, expenses, activities, gallery, payment QRs, members |
+| **Volunteer** — `vikram.c@example.com` | Yes | Record collections and issue receipts. Cannot edit expenses, delete entries, or verify their own handovers |
+| **Resident / anyone with the link** | **No account needed** | View the accounts, gallery and activities, and look up their own receipt |
+
+Password for both sample accounts: `demo1234` — the login screen has buttons that fill
+them in.
+
+**Public routes:** `/`, `/funds`, `/funds/report`, `/activities`, `/gallery`, `/receipt`.
+**Login required:** `/collect`, `/admin`.
+
+A public ledger means donor names and amounts sit on a URL anyone with the link can open.
+That mirrors the chanda list going up on the notice board, but a search engine is a
+different matter — so the app sends `robots: noindex`. If a resident objects to their name
+being visible, the next step would be masking names behind flat numbers on the public view.
 
 ---
 
@@ -46,10 +60,8 @@ these in for you). Password for all of them: `demo1234`
 - **WhatsApp sharing** — composes a ready-made update for the society group (see below).
 - **Installable** — residents can "Add to Home Screen" and it opens like an app.
 
-### Roles
-
-`admin` (committee) → `collector` (volunteer) → `resident` (view-only). New registrations
-sit in a **pending** state until an admin approves them, so only real residents get in.
+- **Receipt lookup** — a resident who lost the WhatsApp message searches by receipt number
+  or flat and gets the whole receipt back, no login.
 
 ---
 
@@ -86,8 +98,8 @@ What changes:
 | `BroadcastChannel` (one device) | Supabase Realtime (every phone, instantly) |
 | Role checks in the client | Postgres **Row Level Security** — enforced by the database |
 
-That last row matters: today a determined resident could edit their own browser copy. With
-RLS the rules ("only admins insert expenses", "collectors cannot verify their own
+That last row matters: today a determined visitor could edit their own browser copy. With
+RLS the rules ("only admins insert expenses", "volunteers cannot verify their own
 handovers") are enforced server-side and cannot be bypassed from the client.
 
 Cost: **₹0** on Supabase's free tier at society scale (500 MB database, 1 GB photos).
@@ -106,7 +118,7 @@ Then, once:
 1. Push this folder to a **GitHub** repo.
 2. Go to [vercel.com](https://vercel.com) → sign in with GitHub → **Add New Project** →
    pick the repo → **Deploy**. No configuration needed; Vercel detects Next.js.
-3. You get a URL like `shantiniketan.vercel.app`. Share that in the society group.
+3. You get a URL like `utsavkosh.vercel.app`. Share that in the society group.
 
 Free tier is comfortably enough for a few hundred residents. A custom domain
 (`yoursociety.in`, ~₹800/year) can be pointed at it later from Vercel → Settings → Domains.
