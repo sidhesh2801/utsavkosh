@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0e5c4b",
+  themeColor: "#a85200",
   /* Residents will pin this to the home screen, so fill the notch area. */
   viewportFit: "cover",
 };

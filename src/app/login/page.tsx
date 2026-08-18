@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSociety } from "@/lib/store";
-import { DEMO_LOGINS } from "@/lib/seed";
 import { Button, Field, Skeleton } from "@/components/ui";
 
 /**
@@ -45,19 +44,12 @@ export default function LoginPage() {
     else router.replace("/collect");
   }
 
-  /** Not named `use…` — that prefix makes lint treat it as a React hook. */
-  function applyDemoLogin(login: { email: string; password: string }) {
-    setError(null);
-    setEmail(login.email);
-    setPassword(login.password);
-  }
-
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
       <div className="mb-7 text-center">
         <span
           aria-hidden
-          className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-brand text-white"
+          className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-brand-bright text-ink"
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path
@@ -72,9 +64,6 @@ export default function LoginPage() {
         </span>
         <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">UtsavKosh</h1>
         <p className="mt-1 text-sm font-medium text-ink-soft">{data.society.name}</p>
-        <p className="mt-1.5 text-sm text-ink-soft">
-          Sign in to record collections and manage the society&apos;s accounts.
-        </p>
       </div>
 
       <div className="card p-5">
@@ -153,21 +142,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border border-dashed border-line-strong px-4 py-4">
-        <p className="text-[0.8125rem] font-medium text-ink">Try it with sample data</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => applyDemoLogin(DEMO_LOGINS.admin)}>
-            Committee admin
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => applyDemoLogin(DEMO_LOGINS.volunteer)}
-          >
-            Volunteer
-          </Button>
-        </div>
-      </div>
     </main>
   );
 }

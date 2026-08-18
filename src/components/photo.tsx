@@ -12,8 +12,8 @@ import type { Photo } from "@/lib/types";
  * uploads replace these entirely.
  */
 const GRADIENTS = [
+  ["#a85200", "#e0913c"],
   ["#0e5c4b", "#2f8f6e"],
-  ["#b8500f", "#e0913c"],
   ["#3c4f7a", "#7089b8"],
   ["#7a3352", "#b8748c"],
   ["#5c5220", "#a3944a"],

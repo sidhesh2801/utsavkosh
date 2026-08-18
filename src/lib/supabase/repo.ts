@@ -272,6 +272,34 @@ export async function currentMember(): Promise<Member | null> {
   return toMember(data as Row);
 }
 
+/**
+ * Creates a login for a volunteer or admin.
+ *
+ * Goes through our own server route rather than straight to Supabase, because
+ * creating a user needs the service_role key and that must stay on the server.
+ */
+export async function createStaffAccount(input: {
+  name: string;
+  email: string;
+  password: string;
+  mobile?: string;
+  wing?: string;
+  flat?: string;
+  role: "admin" | "volunteer";
+}): Promise<void> {
+  const { data } = await client().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Please sign in again.");
+
+  const res = await fetch("/api/staff", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  });
+  const payload = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(payload.error ?? "Could not create the account.");
+}
+
 /* -------------------------------------------------------------- mutations */
 
 /** `undefined` values are dropped so a patch never blanks an untouched column. */

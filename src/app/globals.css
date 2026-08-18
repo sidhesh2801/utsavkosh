@@ -3,10 +3,10 @@
 /**
  * Design tokens.
  *
- * Warm off-white paper, deep emerald for the society's own identity, and a
- * marigold accent for festival context. Credit/debit greens and reds are used
- * only for money direction, never for decoration, so a colour on this screen
- * always means the same thing.
+ * Warm off-white paper, saffron for the society's own identity, and emerald as
+ * a cool counterpoint. Credit/debit greens and reds are used only for money
+ * direction, never for decoration, so a colour on this screen always means the
+ * same thing.
  */
 @theme {
   --color-canvas: #f7f6f2;
@@ -19,13 +19,26 @@
   --color-line: #e5e1d8;
   --color-line-strong: #d3cec2;
 
-  --color-brand: #0e5c4b;
-  --color-brand-deep: #0a4438;
-  --color-brand-soft: #e6f0ed;
-  --color-brand-ink: #0a4438;
+  /**
+   * Saffron.
+   *
+   * Flag saffron (#FF9933) is far too light to carry white text — 2.1:1, well
+   * under the 4.5:1 needed — so it is used only where nothing sits on top of it
+   * (the app mark, decorative fills). Anything bearing white text uses the deep
+   * saffron below, which clears 4.5:1 both ways: as a button fill under white
+   * text (5.4:1) and as link text on the page background (5.0:1). One token
+   * that works in both roles beats a separate colour for links.
+   */
+  --color-brand: #a85200;
+  --color-brand-deep: #7a3c00;
+  --color-brand-bright: #ff9933;
+  --color-brand-soft: #fdf0e1;
+  --color-brand-ink: #8c4400;
 
-  --color-accent: #b8500f;
-  --color-accent-soft: #fdf0e5;
+  /* Emerald as the cool counterpoint, so the warm chrome has something to
+     play against and "accent" never reads as another shade of brand. */
+  --color-accent: #0e5c4b;
+  --color-accent-soft: #e6f0ed;
 
   --color-credit: #0f7a5f;
   --color-credit-soft: #e6f4ef;

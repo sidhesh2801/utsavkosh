@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useSociety } from "@/lib/store";
-import { flatLabel, shortDate } from "@/lib/format";
+import { flatLabel } from "@/lib/format";
 import {
   Avatar,
   Badge,
@@ -35,7 +35,6 @@ export default function AdminPage() {
     );
   }
 
-  const pending = data.members.filter((m) => m.status === "pending");
   const approved = data.members.filter((m) => m.status === "approved");
   const rejected = data.members.filter((m) => m.status === "rejected");
 
@@ -43,27 +42,8 @@ export default function AdminPage() {
     <div className="space-y-7">
       <PageHeader
         title="Manage society"
-        subtitle="Approve new residents, decide who can record collections, and edit society details."
+        subtitle="Add volunteers, set who can record collections, and edit society details."
       />
-
-      <section>
-        <SectionTitle>
-          Waiting for approval{pending.length ? ` — ${pending.length}` : ""}
-        </SectionTitle>
-        {pending.length ? (
-          <Card>
-            <ul className="divide-y divide-line">
-              {pending.map((m) => (
-                <PendingRow key={m.id} member={m} />
-              ))}
-            </ul>
-          </Card>
-        ) : (
-          <Card className="px-4 py-6 text-center">
-            <p className="text-sm text-ink-soft">No registrations waiting.</p>
-          </Card>
-        )}
-      </section>
 
       <section>
         <SectionTitle>Members — {approved.length}</SectionTitle>
@@ -96,53 +76,10 @@ export default function AdminPage() {
         </section>
       ) : null}
 
+      <AddStaff />
       <PaymentQrs />
       <SocietySettings />
-      <DangerZone />
     </div>
-  );
-}
-
-function PendingRow({ member }: { member: Member }) {
-  const { approveMember, rejectMember } = useSociety();
-  const toast = useToast();
-
-  return (
-    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
-      <Avatar name={member.name} tone="neutral" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{member.name}</p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-soft">
-          <span className="tnum font-medium">{flatLabel(member.wing, member.flat)}</span>
-          <span className="tnum">{member.mobile}</span>
-          <span className="truncate">{member.email}</span>
-        </p>
-        <p className="tnum mt-0.5 text-[0.6875rem] text-ink-faint">
-          Registered {shortDate(member.joinedAt)}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={async () => {
-            const r = await rejectMember(member.id);
-            toast(r.ok ? `${member.name} was not approved.` : r.error, r.ok ? "success" : "error");
-          }}
-        >
-          Reject
-        </Button>
-        <Button
-          size="sm"
-          onClick={async () => {
-            const r = await approveMember(member.id);
-            toast(r.ok ? `${member.name} can now sign in.` : r.error, r.ok ? "success" : "error");
-          }}
-        >
-          Approve
-        </Button>
-      </div>
-    </li>
   );
 }
 
@@ -220,6 +157,169 @@ function MemberRow({ member }: { member: Member }) {
         </Button>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * Creates a login for a volunteer or a fellow admin.
+ *
+ * The account works immediately — no confirmation email — because Supabase's
+ * free mailer only sends a few messages an hour, which would make onboarding
+ * thirty volunteers take most of a day.
+ */
+function AddStaff() {
+  const { data, createStaffAccount } = useSociety();
+  const toast = useToast();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [wing, setWing] = useState("");
+  const [flat, setFlat] = useState("");
+  const [role, setRole] = useState<"volunteer" | "admin">("volunteer");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /** A readable password worth reading aloud over the phone. */
+  function suggestPassword() {
+    const words = ["utsav", "diya", "rangoli", "kalash", "modak", "dhol", "lantern", "toran"];
+    const pick = () => words[Math.floor(Math.random() * words.length)];
+    setPassword(`${pick()}-${pick()}-${Math.floor(1000 + Math.random() * 9000)}`);
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    const result = await createStaffAccount({ name, email, password, mobile, wing, flat, role });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    toast(`${name} can sign in now.`);
+    setName("");
+    setEmail("");
+    setMobile("");
+    setWing("");
+    setFlat("");
+    setPassword("");
+  }
+
+  return (
+    <section>
+      <SectionTitle>Add a volunteer or admin</SectionTitle>
+      <Card className="p-4">
+        <p className="mb-4 text-[0.8125rem] leading-relaxed text-ink-soft">
+          Set a password here and pass it to them — they can sign in straight away. Volunteers can
+          record collections and issue receipts; they cannot edit expenses, delete entries, or
+          confirm their own handovers.
+        </p>
+
+        <form onSubmit={submit} className="space-y-3.5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Full name" required>
+              <input
+                className="field"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="e.g. Vikram Chauhan"
+              />
+            </Field>
+            <Field label="Email address" hint="What they sign in with." required>
+              <input
+                className="field"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="vikram@example.com"
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Field label="Mobile">
+              <input
+                className="field tnum"
+                type="tel"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+              />
+            </Field>
+            <Field label="Tower">
+              {data.society.wings.length ? (
+                <select className="field" value={wing} onChange={(e) => setWing(e.target.value)}>
+                  <option value="">—</option>
+                  {data.society.wings.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input className="field" value={wing} onChange={(e) => setWing(e.target.value)} />
+              )}
+            </Field>
+            <Field label="Flat">
+              <input
+                className="field tnum"
+                value={flat}
+                onChange={(e) => setFlat(e.target.value)}
+                inputMode="numeric"
+              />
+            </Field>
+            <Field label="Role" required>
+              <select
+                className="field"
+                value={role}
+                onChange={(e) => setRole(e.target.value as "volunteer" | "admin")}
+              >
+                <option value="volunteer">Volunteer</option>
+                <option value="admin">Committee admin</option>
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Password" hint="At least 8 characters. Share it with them directly." required>
+            <div className="flex gap-2">
+              <input
+                className="field"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                placeholder="At least 8 characters"
+              />
+              <Button type="button" variant="secondary" onClick={suggestPassword}>
+                Suggest
+              </Button>
+            </div>
+          </Field>
+
+          {role === "admin" ? (
+            <p className="rounded-lg bg-warn-soft px-3 py-2.5 text-xs leading-relaxed text-warn">
+              A committee admin can do everything you can, including editing expenses and
+              confirming handovers. Only add admins you&apos;d trust with the society&apos;s accounts.
+            </p>
+          ) : null}
+
+          {error ? (
+            <p role="alert" className="rounded-lg bg-debit-soft px-3 py-2.5 text-[0.8125rem] text-debit">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="flex justify-end">
+            <Button type="submit" disabled={busy}>
+              {busy ? "Creating…" : "Create account"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </section>
   );
 }
 
@@ -413,95 +513,6 @@ function SocietySettings() {
             }}
           >
             Save details
-          </Button>
-        </div>
-      </Card>
-    </section>
-  );
-}
-
-function DangerZone() {
-  const { data, resetToSampleData, startFresh } = useSociety();
-  const toast = useToast();
-  const confirm = useConfirm();
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
-  const [wings, setWings] = useState("A, B, C");
-
-  const counts = useMemo(
-    () => ({
-      donations: data.donations.length,
-      expenses: data.expenses.length,
-      activities: data.activities.length,
-      photos: data.photos.length,
-    }),
-    [data],
-  );
-
-  return (
-    <section>
-      <SectionTitle>Starting with your own society</SectionTitle>
-      <Card className="space-y-4 p-4">
-        <p className="text-[0.8125rem] leading-relaxed text-ink-soft">
-          This app currently holds sample data — {counts.donations} donations, {counts.expenses}{" "}
-          expenses, {counts.activities} activities and {counts.photos} photographs for a fictional
-          society. When you&apos;re ready to use it for real, clear it and start with an empty
-          register. Your own admin account is kept.
-        </p>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Your society's name" required>
-            <input
-              className="field"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sai Residency CHS"
-            />
-          </Field>
-          <Field label="Address">
-            <input className="field" value={address} onChange={(e) => setAddress(e.target.value)} />
-          </Field>
-          <Field label="Wings">
-            <input className="field" value={wings} onChange={(e) => setWings(e.target.value)} />
-          </Field>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="danger"
-            disabled={!name.trim()}
-            onClick={async () => {
-              if (
-                !confirm(
-                  `Delete all sample data and start fresh as “${name.trim()}”? This cannot be undone.`,
-                )
-              )
-                return;
-              const r = await startFresh(
-                name,
-                address,
-                wings
-                  .split(",")
-                  .map((w) => w.trim().toUpperCase())
-                  .filter(Boolean),
-              );
-              toast(
-                r.ok ? "Ready — the register is empty and yours." : r.error,
-                r.ok ? "success" : "error",
-              );
-            }}
-          >
-            Clear everything and start fresh
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              if (!confirm("Discard all changes and restore the original sample data?")) return;
-              await resetToSampleData();
-              toast("Sample data restored. Please sign in again.");
-            }}
-          >
-            Restore sample data
           </Button>
         </div>
       </Card>

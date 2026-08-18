@@ -251,7 +251,7 @@ function SocietyMark() {
   return (
     <span
       aria-hidden
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-brand text-white"
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-brand-bright text-ink"
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path

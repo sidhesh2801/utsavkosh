@@ -11,14 +11,12 @@ import {
   type ReactNode,
 } from "react";
 import {
-  clearAll,
   deletePhotoFile,
   putPhotoFile,
   readAllPhotoFiles,
   readState,
   writeState,
 } from "./idb";
-import { createSeedData } from "./seed";
 import { DEFAULT_RECEIPT_PREFIX, nextReceiptNo } from "./receipt";
 import { isSupabaseConfigured } from "./supabase/client";
 import * as remoteRepo from "./supabase/repo";
@@ -102,10 +100,19 @@ interface SocietyStore {
   removeMember(id: string): Promise<Result>;
 
   updateSociety(patch: Partial<SocietyData["society"]>): Promise<Result>;
-  /** Wipe everything and put the sample society back. */
-  resetToSampleData(): Promise<void>;
-  /** Wipe everything and start with an empty society. */
-  startFresh(name: string, address: string, wings: string[]): Promise<Result>;
+  /**
+   * Creates a login for a volunteer or fellow admin. Only available against a
+   * real database — there is no account system in local mode.
+   */
+  createStaffAccount(input: {
+    name: string;
+    email: string;
+    password: string;
+    mobile?: string;
+    wing?: string;
+    flat?: string;
+    role: "admin" | "volunteer";
+  }): Promise<Result>;
 }
 
 export type Result<T = void> = { ok: true; value: T } | { ok: false; error: string };
@@ -273,7 +280,9 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
     (async () => {
       const [stored, files] = await Promise.all([readState<SocietyData>(), readAllPhotoFiles()]);
       if (cancelled) return;
-      setData(stored ? rehydrateImages(stored, files) : createSeedData());
+      // No sample data: an unconfigured app starts genuinely empty rather
+      // than showing a fictional society that could be mistaken for real records.
+      setData(stored ? rehydrateImages(stored, files) : emptyData);
       try {
         setSessionId(localStorage.getItem(SESSION_KEY));
       } catch {
@@ -788,6 +797,10 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
         return ok(undefined);
       },
 
+      async createStaffAccount() {
+        return fail("Connect the app to its database before adding accounts.");
+      },
+
       async updateSociety(patch) {
         const guard = requireAdmin();
         if (!guard.ok) return guard;
@@ -795,30 +808,6 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
         return ok(undefined);
       },
 
-      async resetToSampleData() {
-        await clearAll();
-        persistSession(null);
-        setData(createSeedData());
-      },
-
-      async startFresh(name, address, wings) {
-        if (!name.trim()) return fail("Please enter your society's name.");
-        const admin = session;
-        if (!admin) return fail("Please sign in first.");
-        await clearAll();
-        setData({
-          society: { name: name.trim(), address: address.trim(), wings },
-          // The signed-in admin is carried over, otherwise nobody could get back in.
-          members: [{ ...admin, role: "admin", status: "approved" }],
-          activities: [],
-          donations: [],
-          expenses: [],
-          albums: [],
-          photos: [],
-          paymentQrs: [],
-        });
-        return ok(undefined);
-      },
     };
 
     function patchMember(id: string, patch: Partial<Member>): Result {
@@ -1083,17 +1072,12 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
 
       updateSociety: (patch) => run(() => remoteRepo.updateSociety(patch)),
 
-      async resetToSampleData() {
-        // Deliberately unavailable against a real database — there is no undo
-        // for wiping a live register, and the sample data isn't wanted there.
-        throw new Error("Sample data can't be restored on a live database.");
+      async createStaffAccount(input) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        return run(() => remoteRepo.createStaffAccount(input));
       },
 
-      async startFresh() {
-        return fail(
-          "This society is already live on its own database. Edit the details under Society details instead.",
-        );
-      },
     };
   }, [remote, store, session, data.donations, data.paymentQrs, refresh]);
 
