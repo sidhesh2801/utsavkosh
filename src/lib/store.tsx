@@ -20,6 +20,8 @@ import {
 } from "./idb";
 import { createSeedData } from "./seed";
 import { DEFAULT_RECEIPT_PREFIX, nextReceiptNo } from "./receipt";
+import { isSupabaseConfigured } from "./supabase/client";
+import * as remoteRepo from "./supabase/repo";
 import type {
   Activity,
   Album,
@@ -228,8 +230,46 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
   /** Suppresses the persist effect while the initial load is being applied. */
   const hydrating = useRef(true);
 
+  /**
+   * `remote` decides which backing store is in play. With Supabase configured
+   * the app is a real shared register; without it, everything lives in this
+   * browser with sample data. The screens can't tell the difference.
+   */
+  const remote = isSupabaseConfigured;
+  /** The signed-in member, when running against Supabase. */
+  const [remoteMember, setRemoteMember] = useState<Member | null>(null);
+
+  /** Re-reads everything from Supabase. Also the realtime handler. */
+  const refresh = useCallback(async () => {
+    const member = await remoteRepo.currentMember();
+    setRemoteMember(member);
+    const next = await remoteRepo.loadAll(Boolean(member));
+    setData(next);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+
+    if (remote) {
+      (async () => {
+        try {
+          await refresh();
+        } catch (err) {
+          // A misconfigured project or an unreachable database shouldn't leave
+          // a blank screen with no explanation.
+          console.error("Could not load from Supabase:", err);
+        } finally {
+          if (!cancelled) {
+            hydrating.current = false;
+            setReady(true);
+          }
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     (async () => {
       const [stored, files] = await Promise.all([readState<SocietyData>(), readAllPhotoFiles()]);
       if (cancelled) return;
@@ -245,7 +285,18 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [remote, refresh]);
+
+  /**
+   * Realtime: a volunteer's entry reaches the treasurer's phone within a second.
+   * This is the cross-device equivalent of the BroadcastChannel below.
+   */
+  useEffect(() => {
+    if (!remote) return;
+    return remoteRepo.subscribeToChanges(() => {
+      void refresh();
+    });
+  }, [remote, refresh]);
 
   /**
    * Live updates.
@@ -263,6 +314,8 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
   const applyingRemote = useRef(false);
 
   useEffect(() => {
+    // Supabase Realtime covers this, across devices rather than tabs.
+    if (remote) return;
     if (typeof BroadcastChannel === "undefined") return;
     const ch = new BroadcastChannel("society-app:sync");
     channel.current = ch;
@@ -281,9 +334,10 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
       ch.close();
       channel.current = null;
     };
-  }, []);
+  }, [remote]);
 
   useEffect(() => {
+    if (remote) return; // Postgres is the store; nothing to persist locally.
     if (hydrating.current) return;
     if (applyingRemote.current) {
       applyingRemote.current = false;
@@ -292,12 +346,12 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
     const stripped = stripImages(data);
     void writeState(stripped);
     channel.current?.postMessage(stripped);
-  }, [data]);
+  }, [data, remote]);
 
-  const session = useMemo(
-    () => data.members.find((m) => m.id === sessionId && m.status === "approved") ?? null,
-    [data.members, sessionId],
-  );
+  const session = useMemo(() => {
+    if (remote) return remoteMember?.status === "approved" ? remoteMember : null;
+    return data.members.find((m) => m.id === sessionId && m.status === "approved") ?? null;
+  }, [remote, remoteMember, data.members, sessionId]);
 
   const persistSession = useCallback((id: string | null) => {
     setSessionId(id);
@@ -781,7 +835,269 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
     }
   }, [data, ready, session, requireAdmin, requireVolunteer, persistSession]);
 
-  return <SocietyContext.Provider value={store}>{children}</SocietyContext.Provider>;
+  /**
+   * Supabase implementations, layered over the local ones.
+   *
+   * Written as overrides rather than branches inside every method so the local
+   * demo path stays exactly as it was and there's only one place to read to see
+   * what talks to the database.
+   *
+   * Each mutation writes, then re-reads the register. That costs one extra round
+   * trip, but it means the client never holds a guess about what the database
+   * did — which matters most where the database is the thing deciding, as with
+   * receipt numbers and the row-level security rules.
+   */
+  const remoteStore = useMemo<SocietyStore>(() => {
+    if (!remote) return store;
+
+    /** Runs a write, refreshes, and turns a thrown error into a Result. */
+    const run = async <T,>(action: () => Promise<T>): Promise<Result<T>> => {
+      try {
+        const value = await action();
+        await refresh();
+        return ok(value);
+      } catch (err) {
+        return fail(err instanceof Error ? err.message : "Something went wrong.");
+      }
+    };
+
+    // `Result<never>` so a guard's failure unifies with any method's return type.
+    const needAdmin = (): Result<never> | null =>
+      session?.role === "admin" ? null : fail("Only committee admins can make this change.");
+    const needStaff = (): Result<never> | null =>
+      session && session.role !== "resident"
+        ? null
+        : fail("Only committee admins and volunteers can record collections.");
+
+    return {
+      ...store,
+
+      async signIn(email, password) {
+        const message = await remoteRepo.signIn(email, password);
+        if (message) {
+          return fail(
+            /invalid login/i.test(message)
+              ? "That email and password don't match any account."
+              : message,
+          );
+        }
+        await refresh();
+        const member = await remoteRepo.currentMember();
+        if (!member) {
+          await remoteRepo.signOut();
+          return fail(
+            "That account isn't on the society register yet. Ask a committee admin to add you.",
+          );
+        }
+        if (member.role === "resident") {
+          await remoteRepo.signOut();
+          return fail(
+            "Residents don't need to sign in — the accounts, gallery and receipts are open to everyone. Use the links below.",
+          );
+        }
+        if (member.status !== "approved") {
+          await remoteRepo.signOut();
+          return fail("This account is not active. Please contact the society office.");
+        }
+        return ok(undefined);
+      },
+
+      async signUp() {
+        return fail(
+          "Accounts are created by the committee. Ask a committee admin to add you as a volunteer.",
+        );
+      },
+
+      signOut() {
+        void remoteRepo.signOut().then(refresh);
+      },
+
+      async addDonation(input) {
+        const guard = needStaff();
+        if (guard) return guard;
+        if (!input.donorName.trim()) return fail("Please enter the donor's name.");
+        if (!(input.amount > 0)) return fail("Amount must be more than zero.");
+        const byAdmin = session!.role === "admin";
+        const at = new Date().toISOString();
+        return run(() =>
+          remoteRepo.insertDonation({
+            ...input,
+            donorName: input.donorName.trim(),
+            recordedBy: session!.id,
+            status: byAdmin ? "verified" : "pending",
+            verifiedBy: byAdmin ? session!.id : undefined,
+            verifiedAt: byAdmin ? at : undefined,
+          }),
+        );
+      },
+
+      updateDonation: (id, patch) => run(() => remoteRepo.updateDonation(id, patch)),
+
+      async deleteDonation(id) {
+        const existing = data.donations.find((d) => d.id === id);
+        if (existing?.proofPhotoId) await remoteRepo.removeProof(existing.proofPhotoId);
+        return run(() => remoteRepo.deleteDonation(id));
+      },
+
+      async verifyDonation(id) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        return run(() =>
+          remoteRepo.updateDonation(id, {
+            status: "verified",
+            verifiedBy: session!.id,
+            verifiedAt: new Date().toISOString(),
+          }),
+        );
+      },
+
+      async unverifyDonation(id) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        // Sent as nulls so Postgres actually clears the columns.
+        return run(() =>
+          remoteRepo.updateDonation(id, {
+            status: "pending",
+            verifiedBy: undefined,
+            verifiedAt: undefined,
+          }),
+        );
+      },
+
+      async verifyAllFrom(volunteerId, activityId) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        const result = await run(() =>
+          remoteRepo.verifyAllFrom(volunteerId, activityId, session!.id),
+        );
+        if (result.ok && result.value === 0) {
+          return fail("There's nothing pending from this volunteer.");
+        }
+        return result;
+      },
+
+      markReceiptSent: (id) =>
+        run(() => remoteRepo.updateDonation(id, { receiptSentAt: new Date().toISOString() })),
+
+      async attachProof(id, file) {
+        const guard = needStaff();
+        if (guard) return guard;
+        if (!file.type.startsWith("image/")) return fail("Please choose a photo or screenshot.");
+        const dataUrl = await toStorableImage(file);
+        return run(async () => {
+          const path = await remoteRepo.uploadProof(id, dataUrl);
+          await remoteRepo.updateDonation(id, { proofPhotoId: path });
+        });
+      },
+
+      async removeProof(id) {
+        const existing = data.donations.find((d) => d.id === id);
+        if (!existing?.proofPhotoId) return ok(undefined);
+        const path = existing.proofPhotoId;
+        return run(async () => {
+          await remoteRepo.updateDonation(id, { proofPhotoId: undefined });
+          await remoteRepo.removeProof(path);
+        });
+      },
+
+      async addPaymentQr(label, file, activityId) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        if (!label.trim()) return fail("Please label the QR so volunteers know which one it is.");
+        if (!file.type.startsWith("image/")) return fail("Please choose the QR image.");
+        // Lighter compression: a QR has to survive being scanned off a screen.
+        const dataUrl = await toStorableImage(file, 1000, 0.92);
+        return run(() => remoteRepo.uploadPaymentQr(label.trim(), dataUrl, activityId ?? null));
+      },
+
+      async removePaymentQr(id) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        const existing = data.paymentQrs.find((q) => q.id === id);
+        return run(() => remoteRepo.deletePaymentQr(id, existing?.imageId ?? ""));
+      },
+
+      async addExpense(input) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        if (!input.title.trim()) return fail("Please describe what the money was spent on.");
+        if (!(input.amount > 0)) return fail("Amount must be more than zero.");
+        return run(() =>
+          remoteRepo.insertExpense({ ...input, title: input.title.trim(), recordedBy: session!.id }),
+        );
+      },
+      updateExpense: (id, patch) => run(() => remoteRepo.updateExpense(id, patch)),
+      deleteExpense: (id) => run(() => remoteRepo.deleteExpense(id)),
+
+      async addActivity(input) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        if (!input.title.trim()) return fail("Please give the activity a name.");
+        return run(() => remoteRepo.insertActivity(input));
+      },
+      updateActivity: (id, patch) => run(() => remoteRepo.updateActivity(id, patch)),
+      deleteActivity: (id) => run(() => remoteRepo.deleteActivity(id)),
+
+      async addAlbum(input) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        if (!input.title.trim()) return fail("Please give the album a name.");
+        return run(() => remoteRepo.insertAlbum(input));
+      },
+      updateAlbum: (id, patch) => run(() => remoteRepo.updateAlbum(id, patch)),
+      deleteAlbum: (id) => run(() => remoteRepo.deleteAlbum(id)),
+
+      async addPhotos(albumId, files) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        const images = files.filter((f) => f.type.startsWith("image/"));
+        if (!images.length) return fail("Please choose image files.");
+        return run(async () => {
+          for (const file of images) {
+            const dataUrl = await toStorableImage(file);
+            await remoteRepo.uploadGalleryPhoto(albumId, dataUrl, "");
+          }
+          return images.length;
+        });
+      },
+      updatePhoto: (id, patch) =>
+        run(() => remoteRepo.updatePhotoCaption(id, patch.caption ?? "")),
+      deletePhoto: (id) => run(() => remoteRepo.deletePhoto(id)),
+
+      approveMember: (id) => run(() => remoteRepo.updateMember(id, { status: "approved" })),
+      rejectMember: (id) => run(() => remoteRepo.updateMember(id, { status: "rejected" })),
+      async setMemberRole(id, role) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        if (id === session!.id && role !== "admin") {
+          return fail("You can't remove your own admin rights — ask another admin to do it.");
+        }
+        return run(() => remoteRepo.updateMember(id, { role }));
+      },
+      async removeMember(id) {
+        const guard = needAdmin();
+        if (guard) return guard;
+        if (id === session!.id) return fail("You can't remove your own account.");
+        return run(() => remoteRepo.deleteMember(id));
+      },
+
+      updateSociety: (patch) => run(() => remoteRepo.updateSociety(patch)),
+
+      async resetToSampleData() {
+        // Deliberately unavailable against a real database — there is no undo
+        // for wiping a live register, and the sample data isn't wanted there.
+        throw new Error("Sample data can't be restored on a live database.");
+      },
+
+      async startFresh() {
+        return fail(
+          "This society is already live on its own database. Edit the details under Society details instead.",
+        );
+      },
+    };
+  }, [remote, store, session, data.donations, data.paymentQrs, refresh]);
+
+  return <SocietyContext.Provider value={remoteStore}>{children}</SocietyContext.Provider>;
 }
 
 export function useSociety(): SocietyStore {

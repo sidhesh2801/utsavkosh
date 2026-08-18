@@ -80,7 +80,77 @@ to see the behaviour with two windows side by side.
 
 ---
 
-## Making it multi-user (Supabase)
+## Turning on the shared database (Supabase)
+
+Everything is written and waiting for two values. Three steps:
+
+**1. Create the project** — [supabase.com](https://supabase.com) → New project → region
+**Mumbai (ap-south-1)**. Save the database password somewhere safe.
+
+**2. Create the tables** — Dashboard → **SQL Editor** → New query → paste all of
+[`supabase/schema.sql`](supabase/schema.sql) → **Run**. Safe to re-run.
+
+**3. Point the app at it** — copy `.env.example` to `.env.local` and fill in the two values
+from Project Settings → **API**:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+```
+
+On Vercel, add the same two under Settings → Environment Variables, then redeploy. With
+them set the app is a shared register; without them it falls back to browser-local sample
+data, so nothing breaks if they're missing.
+
+> Never put the `service_role` key in either place — it bypasses every security policy.
+
+**Then create the first admin:** Dashboard → Authentication → Users → **Add user** (email +
+password). Then in SQL Editor:
+>
+> ```sql
+> insert into public.societies (name, address, receipt_prefix, wings)
+> values ('Wellington — Pride World City', 'Pride World City, Charholi Budruk, Pune 412105',
+>         'WPC', array['A','B','C','D']);
+>
+> insert into public.members (user_id, name, email, role, status)
+> select id, 'Your Name', email, 'admin', 'approved' from auth.users limit 1;
+> ```
+
+After that, add volunteers from **Manage** in the app (create their Auth user the same way,
+then set their role).
+
+### How the security works
+
+Roles are enforced by Postgres, not the browser, so tampering with the client changes
+nothing:
+
+- A **volunteer** can insert a donation only with `recorded_by` set to themselves, and only
+  with `status = 'pending'`. The UPDATE policy's `WITH CHECK` pins their own rows to
+  `pending`, so **a volunteer cannot mark their own cash as handed over.**
+- **Guests** (`anon`) can read the money tables — but only the *columns* on the notice
+  board. `donor_mobile` and the free-text `note` are revoked, so the public ledger cannot
+  leak phone numbers. This is why the app selects explicit column lists, not `select *`.
+- **Receipt numbers are issued by a database trigger**, not the client. With thirty
+  volunteers saving at once, two browsers computing "highest + 1" would hand out the same
+  number; the trigger's atomic upsert keeps the series gapless. A second trigger makes a
+  receipt number immutable once issued.
+- **Gallery images are public; proof images are not.** A UPI confirmation screenshot can
+  carry the payer's name, handle and phone, so the `proofs` bucket is private and served
+  through short-lived signed URLs to staff only.
+- Deleting an activity with money against it is refused by a foreign key, not by a check
+  the client could skip.
+
+### What changes when it's on
+
+| Local (now) | With Supabase |
+|---|---|
+| IndexedDB in each browser | Shared Postgres |
+| Sample passwords in a seed file | Supabase Auth (hashed server-side, reset e-mails) |
+| Images as data URLs | Storage buckets, images become URLs |
+| `BroadcastChannel` (tabs on one device) | Realtime (every phone, ~1s) |
+| Role checks in the client | Row-level security in the database |
+
+## Notes on the original local-only design
 
 The code is written for this swap. All reads and writes go through one place —
 [`src/lib/store.tsx`](src/lib/store.tsx) — and the domain types in
