@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useSociety } from "@/lib/store";
 import { flatLabel, shortDate } from "@/lib/format";
 import {
@@ -96,6 +96,7 @@ export default function AdminPage() {
         </section>
       ) : null}
 
+      <PaymentQrs />
       <SocietySettings />
       <DangerZone />
     </div>
@@ -222,17 +223,150 @@ function MemberRow({ member }: { member: Member }) {
   );
 }
 
+/**
+ * The society's payment QR images — the ones the bank or PhonePe issued.
+ * Volunteers show these at the door for residents to scan.
+ */
+function PaymentQrs() {
+  const { data, addPaymentQr, removePaymentQr } = useSociety();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [label, setLabel] = useState("");
+  const [activityId, setActivityId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const qrs = data.paymentQrs ?? [];
+
+  async function onPicked(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setBusy(true);
+    const r = await addPaymentQr(label, file, activityId || null);
+    setBusy(false);
+    if (fileInput.current) fileInput.current.value = "";
+    if (r.ok) {
+      setLabel("");
+      setActivityId("");
+      toast("QR added — volunteers can show it at the door now.");
+    } else {
+      toast(r.error, "error");
+    }
+  }
+
+  return (
+    <section>
+      <SectionTitle>Payment QR codes — {qrs.length}</SectionTitle>
+      <Card className="space-y-4 p-4">
+        <p className="rounded-lg bg-warn-soft px-3 py-2.5 text-xs leading-relaxed text-warn">
+          Upload only a QR for the society&apos;s <strong>registered current account</strong>.
+          Collecting festival contributions into a committee member&apos;s personal UPI creates a
+          tax and audit problem for that person, and banks flag it at these volumes.
+        </p>
+
+        {qrs.length ? (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {qrs.map((qr) => (
+              <li key={qr.id} className="rounded-xl border border-line p-3">
+                {qr.src ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={qr.src}
+                    alt={`QR code — ${qr.label}`}
+                    className="mx-auto h-32 w-32 object-contain"
+                  />
+                ) : (
+                  <div className="mx-auto grid h-32 w-32 place-items-center rounded-lg bg-surface-sunken text-xs text-ink-faint">
+                    Image missing
+                  </div>
+                )}
+                <p className="mt-2 text-center text-[0.8125rem] font-medium text-ink">{qr.label}</p>
+                {qr.activityId ? (
+                  <p className="mt-0.5 text-center text-[0.6875rem] text-ink-faint">
+                    {data.activities.find((a) => a.id === qr.activityId)?.title ?? "Activity"}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-center text-[0.6875rem] text-ink-faint">
+                    Shown for all activities
+                  </p>
+                )}
+                <div className="mt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm(`Remove the QR “${qr.label}”?`)) return;
+                      const r = await removePaymentQr(qr.id);
+                      toast(r.ok ? "QR removed." : r.error, r.ok ? "success" : "error");
+                    }}
+                    className="text-[0.6875rem] font-medium text-debit underline decoration-debit/30 underline-offset-2"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[0.8125rem] text-ink-soft">
+            No QR uploaded yet. Take a screenshot or photo of the QR your bank gave the society and
+            add it below.
+          </p>
+        )}
+
+        <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+          <Field label="Label" hint="What volunteers will see, e.g. “Janmashtami — SBI”." required>
+            <input
+              className="field"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Janmashtami Fund — SBI current a/c"
+            />
+          </Field>
+          <Field label="For which activity" hint="Leave blank to show it for every collection.">
+            <select
+              className="field"
+              value={activityId}
+              onChange={(e) => setActivityId(e.target.value)}
+            >
+              <option value="">All activities</option>
+              {data.activities.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void onPicked(e.target.files)}
+          />
+          <Button disabled={!label.trim() || busy} onClick={() => fileInput.current?.click()}>
+            {busy ? "Adding…" : "Upload QR image"}
+          </Button>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function SocietySettings() {
   const { data, updateSociety } = useSociety();
   const toast = useToast();
   const [name, setName] = useState(data.society.name);
   const [address, setAddress] = useState(data.society.address);
   const [wings, setWings] = useState(data.society.wings.join(", "));
+  const [prefix, setPrefix] = useState(data.society.receiptPrefix ?? "");
 
   const dirty =
     name !== data.society.name ||
     address !== data.society.address ||
-    wings !== data.society.wings.join(", ");
+    wings !== data.society.wings.join(", ") ||
+    prefix !== (data.society.receiptPrefix ?? "");
 
   return (
     <section>
@@ -244,8 +378,23 @@ function SocietySettings() {
         <Field label="Address">
           <input className="field" value={address} onChange={(e) => setAddress(e.target.value)} />
         </Field>
-        <Field label="Wings" hint="Comma separated, e.g. A, B, C, D. Used in the flat pickers.">
+        <Field
+          label="Towers / wings"
+          hint="Comma separated, e.g. A, B, C, D. Used in the flat pickers."
+        >
           <input className="field" value={wings} onChange={(e) => setWings(e.target.value)} />
+        </Field>
+        <Field
+          label="Receipt prefix"
+          hint={`Receipts read ${prefix || "WPC"}/2026-27/0001. Set this before issuing the first receipt — changing it later makes the series look like it has gaps.`}
+        >
+          <input
+            className="field uppercase"
+            value={prefix}
+            maxLength={8}
+            onChange={(e) => setPrefix(e.target.value.toUpperCase())}
+            placeholder="WPC"
+          />
         </Field>
         <div className="flex justify-end">
           <Button
@@ -254,6 +403,7 @@ function SocietySettings() {
               const r = await updateSociety({
                 name: name.trim(),
                 address: address.trim(),
+                receiptPrefix: prefix.trim() || undefined,
                 wings: wings
                   .split(",")
                   .map((w) => w.trim().toUpperCase())

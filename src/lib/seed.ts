@@ -7,6 +7,7 @@ import type {
   Photo,
   SocietyData,
 } from "./types";
+import { financialYear } from "./receipt";
 
 /**
  * Sample data for a ~120-flat housing society, so every screen has something
@@ -24,7 +25,7 @@ const ADMIN_TREASURER = "mem-meena";
 const DEMO_PASSWORD = "demo1234";
 
 export const DEMO_LOGINS = {
-  admin: { email: "secretary@shantiniketan.in", password: DEMO_PASSWORD },
+  admin: { email: "secretary@wellingtonpwc.in", password: DEMO_PASSWORD },
   collector: { email: "vikram.c@example.com", password: DEMO_PASSWORD },
   resident: { email: "sunil.k@example.com", password: DEMO_PASSWORD },
 };
@@ -33,7 +34,7 @@ const members: Member[] = [
   {
     id: ADMIN_SECRETARY,
     name: "Rajesh Deshmukh",
-    email: "secretary@shantiniketan.in",
+    email: "secretary@wellingtonpwc.in",
     mobile: "98200 11234",
     wing: "A",
     flat: "1204",
@@ -45,7 +46,7 @@ const members: Member[] = [
   {
     id: ADMIN_TREASURER,
     name: "Meena Iyer",
-    email: "treasurer@shantiniketan.in",
+    email: "treasurer@wellingtonpwc.in",
     mobile: "98330 44210",
     wing: "B",
     flat: "702",
@@ -752,8 +753,12 @@ const janmashtamiSeeds: DriveSeed[] = [
 
 function expandDrive(): Donation[] {
   return janmashtamiSeeds.map(
-    ([id, donorName, wing, flat, amount, method, receivedAt, collectedBy, status, reference]) => ({
+    (
+      [id, donorName, wing, flat, amount, method, receivedAt, collectedBy, status, reference],
+      i,
+    ) => ({
       id,
+      receiptNo: `WPC/2026-27/${String(i + 1).padStart(4, "0")}`,
       donorName,
       wing: wing || undefined,
       flat: flat || undefined,
@@ -773,8 +778,13 @@ function expandDrive(): Donation[] {
 
 function expandDonations(): Donation[] {
   const historic = donationSeeds.map(
-    ([id, donorName, wing, flat, amount, method, activityId, receivedAt, reference, note]) => ({
+    (
+      [id, donorName, wing, flat, amount, method, activityId, receivedAt, reference, note],
+      i,
+    ) => ({
       id,
+      // Historic entries carry the receipt series of their own financial year.
+      receiptNo: `WPC/${financialYear(receivedAt)}/${String(i + 1).padStart(4, "0")}`,
       donorName,
       wing: wing || undefined,
       flat: flat || undefined,
@@ -842,10 +852,15 @@ export function createSeedData(): SocietyData {
   const { albums, photos } = expandGallery();
   return {
     society: {
-      name: "Shantiniketan Heights CHS",
-      address: "Plot 24, Sector 12, Kharghar, Navi Mumbai 410210",
+      name: "Wellington — Pride World City",
+      address: "Pride World City, Charholi Budruk, Pune 412105",
+      // Placeholder towers — set the real ones in Manage → Society details.
       wings: ["A", "B", "C", "D"],
+      receiptPrefix: "WPC",
     },
+    // Real societies upload the QR image their bank issued; the sample data has
+    // none, so the app shows the "upload a QR" prompt.
+    paymentQrs: [],
     members,
     activities,
     donations: expandDonations(),

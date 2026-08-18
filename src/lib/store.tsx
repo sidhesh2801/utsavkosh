@@ -19,12 +19,14 @@ import {
   writeState,
 } from "./idb";
 import { createSeedData } from "./seed";
+import { DEFAULT_RECEIPT_PREFIX, nextReceiptNo } from "./receipt";
 import type {
   Activity,
   Album,
   Donation,
   Expense,
   Member,
+  PaymentQr,
   Photo,
   SocietyData,
 } from "./types";
@@ -52,7 +54,8 @@ interface SocietyStore {
   signUp(input: SignUpInput): Promise<Result>;
   signOut(): void;
 
-  addDonation(input: NewDonation): Promise<Result>;
+  /** Resolves with the new entry's id, so the caller can go straight to its receipt. */
+  addDonation(input: NewDonation): Promise<Result<string>>;
   updateDonation(id: string, patch: Partial<Donation>): Promise<Result>;
   deleteDonation(id: string): Promise<Result>;
   /** Treasurer confirms the cash or transfer actually reached the society. */
@@ -61,6 +64,19 @@ interface SocietyStore {
   unverifyDonation(id: string): Promise<Result>;
   /** Confirm every pending entry from one volunteer at handover time. */
   verifyAllFrom(collectorId: string, activityId?: string | null): Promise<Result<number>>;
+  /** Records that the receipt has been sent, so the list can show what's left. */
+  markReceiptSent(id: string): Promise<Result>;
+  /**
+   * Attaches the photograph of a paper receipt stub or a UPI confirmation
+   * screenshot to an entry — the audit proof behind the money.
+   */
+  attachProof(id: string, file: File): Promise<Result>;
+  removeProof(id: string): Promise<Result>;
+
+  /** Upload one of the society's existing payment QR images. */
+  addPaymentQr(label: string, file: File, activityId?: string | null): Promise<Result>;
+  updatePaymentQr(id: string, patch: Partial<PaymentQr>): Promise<Result>;
+  removePaymentQr(id: string): Promise<Result>;
 
   addExpense(input: NewExpense): Promise<Result>;
   updateExpense(id: string, patch: Partial<Expense>): Promise<Result>;
@@ -104,10 +120,20 @@ export interface SignUpInput {
   password: string;
 }
 
-/** `status` is decided by the store from the signer's role, not by the caller. */
+/**
+ * `status` is decided by the store from the signer's role, and `receiptNo` is
+ * issued by the store to keep the series gapless — neither is the caller's.
+ */
 export type NewDonation = Omit<
   Donation,
-  "id" | "createdAt" | "recordedBy" | "status" | "verifiedBy" | "verifiedAt"
+  | "id"
+  | "createdAt"
+  | "recordedBy"
+  | "status"
+  | "verifiedBy"
+  | "verifiedAt"
+  | "receiptNo"
+  | "receiptSentAt"
 >;
 export type NewExpense = Omit<Expense, "id" | "createdAt" | "recordedBy">;
 export type NewActivity = Omit<Activity, "id" | "createdAt">;
@@ -123,6 +149,7 @@ const emptyData: SocietyData = {
   expenses: [],
   albums: [],
   photos: [],
+  paymentQrs: [],
 };
 
 function newId(prefix: string): string {
@@ -168,15 +195,29 @@ async function toStorableImage(file: File, maxDim = 1600, quality = 0.72): Promi
   }
 }
 
-/** Image data is persisted separately, so it never goes into the state record. */
+/**
+ * Image data is persisted separately, so it never goes into the state record.
+ * Covers both gallery photographs and the proof images attached to donations.
+ */
 function stripImages(data: SocietyData): SocietyData {
-  return { ...data, photos: data.photos.map((p) => ({ ...p, src: null })) };
+  return {
+    ...data,
+    photos: data.photos.map((p) => ({ ...p, src: null })),
+    donations: data.donations.map((d) => ({ ...d, proofSrc: null })),
+    // `?? []` guards state persisted before payment QRs existed.
+    paymentQrs: (data.paymentQrs ?? []).map((q) => ({ ...q, src: null })),
+  };
 }
 
 function rehydrateImages(data: SocietyData, files: Record<string, string>): SocietyData {
   return {
     ...data,
     photos: data.photos.map((p) => ({ ...p, src: files[p.id] ?? null })),
+    donations: data.donations.map((d) => ({
+      ...d,
+      proofSrc: d.proofPhotoId ? (files[d.proofPhotoId] ?? null) : null,
+    })),
+    paymentQrs: (data.paymentQrs ?? []).map((q) => ({ ...q, src: files[q.imageId] ?? null })),
   };
 }
 
@@ -229,11 +270,10 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
       applyingRemote.current = true;
       // Image data isn't broadcast (far too large), so keep what this tab holds.
       setData((prev) => {
-        const known = Object.fromEntries(
-          prev.photos
-            .filter((p) => p.src !== null)
-            .map((p) => [p.id, p.src as string]),
-        );
+        const known: Record<string, string> = {};
+        for (const p of prev.photos) if (p.src) known[p.id] = p.src;
+        for (const d of prev.donations) if (d.proofPhotoId && d.proofSrc) known[d.proofPhotoId] = d.proofSrc;
+        for (const q of prev.paymentQrs) if (q.src) known[q.imageId] = q.src;
         return rehydrateImages(event.data, known);
       });
     };
@@ -403,6 +443,12 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
           ...input,
           donorName: input.donorName.trim(),
           id: newId("don"),
+          // Assigned once, here, so the series stays gapless and auditable.
+          receiptNo: nextReceiptNo(
+            data.donations,
+            input.receivedAt,
+            data.society.receiptPrefix || DEFAULT_RECEIPT_PREFIX,
+          ),
           recordedBy: session!.id,
           // A volunteer's entry waits for handover; an admin recording it is
           // already the person holding the society's money.
@@ -412,7 +458,7 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
           createdAt: at,
         };
         setData((prev) => ({ ...prev, donations: [donation, ...prev.donations] }));
-        return ok(undefined);
+        return ok(donation.id);
       },
 
       async updateDonation(id, patch) {
@@ -420,9 +466,99 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
         if (!existing) return fail("That entry no longer exists.");
         const guard = mayAmendDonation(existing);
         if (!guard.ok) return guard;
+        // The receipt number is issued once and never reassigned — a resident
+        // may already be holding a copy of it.
+        const { receiptNo: _ignored, ...safe } = patch;
+        void _ignored;
         setData((prev) => ({
           ...prev,
-          donations: prev.donations.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+          donations: prev.donations.map((d) => (d.id === id ? { ...d, ...safe } : d)),
+        }));
+        return ok(undefined);
+      },
+
+      async attachProof(id, file) {
+        const existing = data.donations.find((d) => d.id === id);
+        if (!existing) return fail("That entry no longer exists.");
+        const guard = mayAmendDonation(existing);
+        if (!guard.ok) return guard;
+        if (!file.type.startsWith("image/")) return fail("Please choose a photo or screenshot.");
+        const photoId = existing.proofPhotoId ?? newId("proof");
+        const src = await toStorableImage(file);
+        await putPhotoFile(photoId, src);
+        setData((prev) => ({
+          ...prev,
+          donations: prev.donations.map((d) =>
+            d.id === id ? { ...d, proofPhotoId: photoId, proofSrc: src } : d,
+          ),
+        }));
+        return ok(undefined);
+      },
+
+      async removeProof(id) {
+        const existing = data.donations.find((d) => d.id === id);
+        if (!existing) return fail("That entry no longer exists.");
+        const guard = mayAmendDonation(existing);
+        if (!guard.ok) return guard;
+        if (existing.proofPhotoId) await deletePhotoFile(existing.proofPhotoId);
+        setData((prev) => ({
+          ...prev,
+          donations: prev.donations.map((d) =>
+            d.id === id ? { ...d, proofPhotoId: undefined, proofSrc: null } : d,
+          ),
+        }));
+        return ok(undefined);
+      },
+
+      async addPaymentQr(label, file, activityId) {
+        const guard = requireAdmin();
+        if (!guard.ok) return guard;
+        if (!label.trim()) return fail("Please label the QR so volunteers know which one it is.");
+        if (!file.type.startsWith("image/")) return fail("Please choose the QR image.");
+        const imageId = newId("qr");
+        // A QR must stay sharp enough to scan off a phone screen, so this is
+        // resized far less aggressively than a gallery photograph.
+        const src = await toStorableImage(file, 1000, 0.92);
+        await putPhotoFile(imageId, src);
+        const qr: PaymentQr = {
+          id: newId("pqr"),
+          label: label.trim(),
+          imageId,
+          src,
+          activityId: activityId ?? null,
+          addedAt: nowIso(),
+        };
+        setData((prev) => ({ ...prev, paymentQrs: [...prev.paymentQrs, qr] }));
+        return ok(undefined);
+      },
+
+      async updatePaymentQr(id, patch) {
+        const guard = requireAdmin();
+        if (!guard.ok) return guard;
+        setData((prev) => ({
+          ...prev,
+          paymentQrs: prev.paymentQrs.map((q) => (q.id === id ? { ...q, ...patch } : q)),
+        }));
+        return ok(undefined);
+      },
+
+      async removePaymentQr(id) {
+        const guard = requireAdmin();
+        if (!guard.ok) return guard;
+        const existing = data.paymentQrs.find((q) => q.id === id);
+        if (existing) await deletePhotoFile(existing.imageId);
+        setData((prev) => ({ ...prev, paymentQrs: prev.paymentQrs.filter((q) => q.id !== id) }));
+        return ok(undefined);
+      },
+
+      async markReceiptSent(id) {
+        const guard = requireCollector();
+        if (!guard.ok) return guard;
+        setData((prev) => ({
+          ...prev,
+          donations: prev.donations.map((d) =>
+            d.id === id && !d.receiptSentAt ? { ...d, receiptSentAt: nowIso() } : d,
+          ),
         }));
         return ok(undefined);
       },
@@ -432,6 +568,8 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
         if (!existing) return fail("That entry no longer exists.");
         const guard = mayAmendDonation(existing);
         if (!guard.ok) return guard;
+        // Don't orphan the proof image in the blob store.
+        if (existing.proofPhotoId) await deletePhotoFile(existing.proofPhotoId);
         setData((prev) => ({ ...prev, donations: prev.donations.filter((d) => d.id !== id) }));
         return ok(undefined);
       },
@@ -616,6 +754,7 @@ export function SocietyProvider({ children }: { children: ReactNode }) {
           expenses: [],
           albums: [],
           photos: [],
+          paymentQrs: [],
         });
         return ok(undefined);
       },

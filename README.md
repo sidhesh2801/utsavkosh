@@ -34,6 +34,12 @@ these in for you). Password for all of them: `demo1234`
 - **Collection drive** — several volunteers record door-to-door collections from their own
   phones at the same time. Each entry is *pending* until the treasurer confirms the
   handover, so **the balance never claims cash the society isn't holding.**
+- **The doorstep flow** — pick wing + flat (name and mobile autofill from the register),
+  enter the amount, show the society's **payment QR** for UPI, **photograph the proof**
+  (paper receipt stub, or their "payment successful" screen), then send the numbered
+  **receipt on WhatsApp**. "Next flat" resets without leaving the screen.
+- **Tenants** — the register holds the owner, but a tenant often pays. Tick *tenant* and
+  their own name goes on the receipt instead of the owner's.
 - **Activities** — what's planned, the approved budget, and actual spend against it.
 - **Photo gallery** — albums per event; uploads are downscaled to 1600px automatically.
 - **Transparency report** — a printable statement of account for a general body meeting.

@@ -86,6 +86,30 @@ export interface Donation {
   activityId: string | null;
   receivedAt: string;
   note?: string;
+  /** Where the receipt gets sent. Optional — cash at a door often has no number. */
+  donorMobile?: string;
+  /**
+   * The flat register holds the owner's name, but a tenant often lives there
+   * and is the one who actually pays. When this is set, `donorName` is the
+   * tenant's name and is never overwritten from the register.
+   */
+  isTenant?: boolean;
+  /**
+   * Gapless sequential receipt number for the financial year, e.g.
+   * "UK/2026-27/0042". Assigned once at entry and never changed, because an
+   * auditor will check the series for gaps.
+   */
+  receiptNo: string;
+  /** Set the first time a receipt is actually sent, for the "sent?" column. */
+  receiptSentAt?: string;
+  /**
+   * Photograph of the paper receipt stub, or the payer's UPI confirmation
+   * screenshot. This is the audit proof behind the entry — stored like gallery
+   * images, so the id here maps to a record in the image store.
+   */
+  proofPhotoId?: string;
+  /** Populated at load; not persisted with the record. */
+  proofSrc?: string | null;
   /** Member id of whoever entered this — admin or volunteer collector. */
   recordedBy: string;
   status: VerificationStatus;
@@ -149,12 +173,43 @@ export interface Photo {
   uploadedAt: string;
 }
 
+/**
+ * A payment QR the society already has — the image the bank, PhonePe or Paytm
+ * issued. Stored as a picture rather than generated from a UPI id, because
+ * that's what committees actually have to hand, and it avoids mistyping a VPA.
+ *
+ * These must point at the society's *registered current account*, never a
+ * committee member's personal UPI — at festival volumes that creates a tax and
+ * audit problem for that individual, and banks flag it.
+ */
+export interface PaymentQr {
+  id: string;
+  /** e.g. "Janmashtami Fund — SBI current a/c" */
+  label: string;
+  /** Key into the image store, like gallery photographs. */
+  imageId: string;
+  /** Populated at load; not persisted with the record. */
+  src?: string | null;
+  /** Optional: restricts this QR to one activity's collection. */
+  activityId?: string | null;
+  /** Kept for the audit trail rather than deleted outright. */
+  archived?: boolean;
+  addedAt: string;
+}
+
 /** Everything the app keeps. Mirrors the set of database tables. */
 export interface SocietyData {
   society: {
     name: string;
     address: string;
+    /** Tower/wing names used in the flat pickers. */
     wings: string[];
+    /**
+     * Leading part of every receipt number, e.g. "WPC" → WPC/2026-27/0001.
+     * Set it before the first receipt is issued — changing it later leaves the
+     * series looking like it has gaps.
+     */
+    receiptPrefix?: string;
   };
   members: Member[];
   activities: Activity[];
@@ -162,4 +217,5 @@ export interface SocietyData {
   expenses: Expense[];
   albums: Album[];
   photos: Photo[];
+  paymentQrs: PaymentQr[];
 }
