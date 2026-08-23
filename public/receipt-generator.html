@@ -47,6 +47,10 @@
     letter-spacing: -0.01em;
   }
   .sub { margin: 0 0 20px; color: var(--ink-soft); font-size: 14px; }
+  .build {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+    background: #f2f0ea; color: var(--ink-faint); font-size: 11px; white-space: nowrap;
+  }
 
   .card {
     background: #fff;
@@ -146,7 +150,10 @@
 <body>
 <div class="wrap">
   <h1>Seva Donation Receipt</h1>
-  <p class="sub">Fill in what you have — every field is optional. The receipt updates as you type.</p>
+  <p class="sub">
+    Fill in what you have — every field is optional. The receipt updates as you type.
+    <span class="build">build v3 · two-pass reading</span>
+  </p>
 
   <div class="card scan">
     <p class="scan-title">Read it from a screenshot</p>
@@ -676,36 +683,49 @@
     while ((m = re2.exec(cleaned)) !== null) {
       var v = Number(m[1]);
       if (/^(19|20)\d{2}$/.test(m[1])) continue;
-      // Below fifty is not a society contribution; it's a stray fragment.
-      if (v < 50 || v > 200000) continue;
+      // Below a hundred it is almost always a fragment — battery level,
+      // masked card digits, a notification count — not a contribution.
+      if (v < 100 || v > 200000) continue;
       add(v, 2);
     }
 
-    return out
-      .sort(function (a, b) { return a.rank - b.rank || b.value - a.value; })
-      .slice(0, 6);
+    out.sort(function (a, b) { return a.rank - b.rank || b.value - a.value; });
+    if (!out.length) return out;
+    // Only ever show the best rank present. A rupee-marked amount is reliable;
+    // once we have one, loose numbers are noise (battery level, card suffix).
+    var best = out[0].rank;
+    return out.filter(function (c) { return c.rank === best; }).slice(0, 5);
   }
 
   /* Names near "to"/"from"/"paid to", plus any standalone capitalised line. */
   function nameCandidates(text) {
     var lines = text.split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
     var out = [];
-    function add(v) {
+    function add(v, isRecipient) {
       v = (v || "").replace(/[^A-Za-z .'-]/g, "").replace(/\s+/g, " ").trim();
+      // Titles carry no information on a receipt and read oddly on one.
+      v = v.replace(/^(?:mr|mrs|ms|dr|shri|smt)\.?\s+/i, "").trim();
       if (v.length < 3 || v.length > 40) return;
-      if (/^(to|from|paid|sent|amount|date|time|upi|bank|successful|payment|transaction|id)$/i.test(v)) return;
-      if (out.indexOf(v) === -1) out.push(v);
+      // Payment apps are full of Title Case UI labels — "Transaction ID",
+      // "Payment details", "Send again" — which look exactly like names to a
+      // capitalisation test. Reject anything containing app vocabulary; real
+      // names don't.
+      if (/\b(?:to|from|paid|sent|send|amount|date|time|upi|bank|account|successful|payment|payments|transaction|id|completed|details|issue|report|view|share|again|more|whatsapp|balance|refund|history)\b/i.test(v)) return;
+      for (var k = 0; k < out.length; k++) if (out[k].value === v) return;
+      out.push({ value: v, recipient: !!isRecipient });
     }
 
     var labelled = /^(?:paid\s+to|received\s+from|sent\s+to|to|from|name)\b[:\s-]*(.{2,40})$/i;
     for (var i = 0; i < lines.length; i++) {
       var m = lines[i].match(labelled);
-      if (m) add(m[1]);
-      if (/^(?:paid\s+to|sent\s+to|to|from)$/i.test(lines[i]) && lines[i + 1]) add(lines[i + 1]);
+      if (m) add(m[1], /sent\s+to|paid\s+to|^to\b/i.test(lines[i]));
+      if (/^(?:paid\s+to|sent\s+to|to|from)$/i.test(lines[i]) && lines[i + 1]) {
+        add(lines[i + 1], /sent\s+to|paid\s+to|^to$/i.test(lines[i]));
+      }
     }
-    // Fall back to lines that look like a person's name.
+    // Fall back to lines that look like a person's name, in either case style.
     for (var j = 0; j < lines.length && out.length < 5; j++) {
-      if (/^[A-Z][a-z]+(?: [A-Z][a-z.]+){1,3}$/.test(lines[j])) add(lines[j]);
+      if (/^(?:[A-Z][a-z]+|[A-Z]{2,})(?: (?:[A-Z][a-z.]+|[A-Z]{2,})){1,3}$/.test(lines[j])) add(lines[j], false);
     }
     return out.slice(0, 5);
   }
@@ -753,9 +773,16 @@
       ln.className = "pick-label";
       ln.textContent = "Name:";
       n.appendChild(ln);
-      names.forEach(function (v) {
-        n.appendChild(chip(v, function () { $("name").value = v; }, "name"));
+      names.forEach(function (c) {
+        var label = c.value + (c.recipient ? "  (who was paid)" : "");
+        n.appendChild(chip(label, function () { $("name").value = c.value; }, "name"));
       });
+      if (names.some(function (c) { return c.recipient; })) {
+        var warn = document.createElement("span");
+        warn.className = "pick-label";
+        warn.textContent = "— “who was paid” is the receiver, usually the society, not the donor.";
+        n.appendChild(warn);
+      }
     }
 
     wrap.hidden = !(amounts.length || names.length);
