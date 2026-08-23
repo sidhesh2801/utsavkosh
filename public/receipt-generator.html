@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v19 · image attaches</span>
+    <span class="build">build v22 · send fixed</span>
   </p>
 
   <div class="card scan">
@@ -217,19 +217,20 @@
   </div>
 
   <div class="row">
-    <button id="sendNumber">Send receipt on WhatsApp</button>
-    <button id="share" class="secondary">Share image only</button>
+    <button id="sendNumber">Open chat &amp; send text</button>
+    <button id="shareImage">Send image</button>
     <button id="download" class="secondary">Save image</button>
     <button id="print" class="secondary">Print</button>
     <button id="next" class="secondary">Next receipt</button>
   </div>
 
   <p class="note">
-    <strong>Send receipt on WhatsApp</strong> opens your phone's share menu with the receipt
-    picture attached — choose WhatsApp, then the contact. That is the only way an app can attach a
-    picture to a WhatsApp message, so picking the contact is the one manual step.<br />
-    On a computer, where sharing files isn't possible, it copies the picture and opens the chat for
-    the number above so you can paste it.<br />
+    <strong>Open chat &amp; send text</strong> goes straight to the number above with the receipt
+    details typed out — press send. The picture is copied at the same time, so you can long-press
+    the box and paste it in.<br />
+    <strong>Send image</strong> opens your phone's share menu with the receipt picture attached —
+    choose WhatsApp, then the contact. WhatsApp allows a link to carry a number, or an app to
+    attach a file, never both — so these are two buttons rather than one.<br />
     The receipt number and society name are remembered on this device, so numbering carries on
     where you left off.
   </p>
@@ -901,22 +902,6 @@
     });
   });
 
-  $("share").addEventListener("click", function () {
-    var file = receiptFileNow();
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], text: caption() }).catch(function (err) {
-        if (err && err.name !== "AbortError") toast("Could not open the share menu.");
-      });
-      return;
-    }
-    // Desktop browsers mostly can't share files; saving is the way in.
-    var url = URL.createObjectURL(file);
-    var a = document.createElement("a");
-    a.href = url; a.download = file.name; a.click();
-    URL.revokeObjectURL(url);
-    toast("Saved the image — attach it in WhatsApp.");
-  });
-
   /*
    * Turn the canvas into a file without going async.
    *
@@ -944,43 +929,69 @@
   }
 
   /*
-   * Send the receipt picture and the details together.
+   * Normalise to the wa.me form: country code, digits only.
+   * A ten-digit Indian mobile gets 91 prefixed; a number that already carries a
+   * country code is left as it is.
+   */
+  function whatsappNumber(input) {
+    var digits = String(input || "").replace(/\D/g, "");
+    if (!digits) return null;
+    if (digits.length === 10 && /^[6-9]/.test(digits)) return "91" + digits;
+    if (digits.length === 12 && digits.indexOf("91") === 0) return digits;
+    if (digits.length === 11 && digits.charAt(0) === "0") return "91" + digits.slice(1);
+    if (digits.length >= 11 && digits.length <= 15) return digits;
+    return null;
+  }
+
+  /*
+   * Two separate buttons, because the platform genuinely cannot do both.
    *
-   * The share sheet goes first because it is the only route that genuinely
-   * attaches an image to a WhatsApp message; it costs one tap to pick the
-   * contact. Where file sharing isn't available the picture is copied and the
-   * chat for that number is opened, to paste it in.
+   * A wa.me link opens a chosen number's chat but can only carry text. The
+   * share sheet can attach the picture but cannot be pointed at a number.
+   * Trying to be clever about which to use meant sometimes no chat opened at
+   * all, so each action is now its own button and does exactly what it says.
    */
   $("sendNumber").addEventListener("click", function () {
     var number = whatsappNumber($("mobile").value);
+    if (!number) {
+      toast("Enter their WhatsApp number first.");
+      $("mobile").focus();
+      return;
+    }
+
+    // Open the chat FIRST. Copying the picture is a nice-to-have, and anything
+    // it throws must not stop the one thing this button promises to do.
+    window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(caption()), "_blank");
+
+    try {
+      if (navigator.clipboard && window.ClipboardItem && window.isSecureContext) {
+        var file = receiptFileNow();
+        navigator.clipboard
+          .write([new ClipboardItem({ "image/png": file })])
+          .then(function () { toast("Chat opened. Long-press the box and paste the receipt."); })
+          .catch(function () { toast("Chat opened. Use “Send image” to attach the receipt."); });
+      }
+    } catch (e) {
+      toast("Chat opened. Use “Send image” to attach the receipt.");
+    }
+  });
+
+  $("shareImage").addEventListener("click", function () {
     var file = receiptFileNow();
-    var text = caption();
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], text: text }).catch(function (err) {
+      navigator.share({ files: [file], text: caption() }).catch(function (err) {
         // Dismissing the sheet is a normal action, not a failure.
-        if (err && err.name === "AbortError") return;
-        openChatWithText(number, text);
+        if (err && err.name !== "AbortError") toast("Could not open the share menu.");
       });
       return;
     }
 
-    if (navigator.clipboard && window.ClipboardItem && window.isSecureContext) {
-      navigator.clipboard
-        .write([new ClipboardItem({ "image/png": file })])
-        .then(function () {
-          openChatWithText(number, text);
-          toast("Receipt copied — long-press the message box and paste it.");
-        })
-        .catch(function () {
-          openChatWithText(number, text);
-          toast("Couldn't copy the picture — use “Save image”, then attach it.");
-        });
-      return;
-    }
-
-    openChatWithText(number, text);
-    toast("This browser can't attach pictures — use “Save image”, then attach it.");
+    var url = URL.createObjectURL(file);
+    var a = document.createElement("a");
+    a.href = url; a.download = file.name; a.click();
+    URL.revokeObjectURL(url);
+    toast("Saved the image — attach it in WhatsApp.");
   });
 
   $("print").addEventListener("click", function () { window.print(); });
