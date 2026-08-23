@@ -101,6 +101,19 @@
     border-radius: 8px;
   }
 
+  .scan { background: #fdf0e1; border-color: #e8cba0; }
+  .scan-title { margin: 0 0 2px; font-size: 14px; font-weight: 600; color: #7a3c00; }
+  .scan-sub { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+  .scan-status { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft); min-height: 1.2em; }
+  .scan-status.warn { color: #8f6410; font-weight: 500; }
+  .scan-status.ok { color: #0f7a5f; font-weight: 500; }
+  #scanRawWrap { margin-top: 8px; font-size: 12px; color: var(--ink-soft); }
+  #scanRaw {
+    margin: 6px 0 0; padding: 8px; background: #fff; border-radius: 8px;
+    max-height: 160px; overflow: auto; white-space: pre-wrap;
+    font-size: 11px; line-height: 1.45;
+  }
+
   .words { margin: 8px 0 0; font-size: 13px; color: var(--ink-soft); font-style: italic; min-height: 1.2em; }
   .note { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--ink-faint); }
   .toast {
@@ -124,6 +137,25 @@
 <div class="wrap">
   <h1>Seva Donation Receipt</h1>
   <p class="sub">Fill in what you have — every field is optional. The receipt updates as you type.</p>
+
+  <div class="card scan">
+    <p class="scan-title">Read it from a screenshot</p>
+    <p class="scan-sub">
+      Take a photo of the payment confirmation or the paper stub, and the amount and name are
+      filled in for you. Always check them before sending.
+    </p>
+    <div class="row">
+      <button type="button" id="scanCamera">Photograph</button>
+      <button type="button" id="scanFile" class="secondary">Choose screenshot</button>
+    </div>
+    <input type="file" id="scanCameraInput" accept="image/*" capture="environment" hidden />
+    <input type="file" id="scanFileInput" accept="image/*" hidden />
+    <p class="scan-status" id="scanStatus"></p>
+    <details id="scanRawWrap" hidden>
+      <summary>What it read</summary>
+      <pre id="scanRaw"></pre>
+    </details>
+  </div>
 
   <div class="card">
     <div class="grid">
@@ -149,6 +181,10 @@
         <p class="words" id="words"></p>
       </div>
       <div class="full">
+        <label for="mobile">Their WhatsApp number <span class="opt">— optional</span></label>
+        <input id="mobile" type="tel" inputmode="numeric" placeholder="98200 11234" autocomplete="off" />
+      </div>
+      <div class="full">
         <label for="society">Society name <span class="opt">— printed under the heading</span></label>
         <input id="society" placeholder="e.g. Wellington — Pride World City" autocomplete="off" />
       </div>
@@ -160,17 +196,21 @@
   </div>
 
   <div class="row">
-    <button id="share">Send on WhatsApp</button>
+    <button id="sendNumber">Open their WhatsApp chat</button>
+    <button id="share" class="secondary">Send receipt image</button>
     <button id="download" class="secondary">Save image</button>
     <button id="print" class="secondary">Print</button>
     <button id="next" class="secondary">Next receipt</button>
   </div>
 
   <p class="note">
-    <strong>Send on WhatsApp</strong> opens your phone's share menu — choose WhatsApp, then the
-    contact. WhatsApp does not allow an app to attach a picture to a specific number
-    automatically, so picking the contact is the one step that stays manual.<br />
-    The receipt number and society name are remembered on this device, so the numbering carries on
+    <strong>Open their WhatsApp chat</strong> goes straight to the number above with the receipt
+    details already typed — you just press send. It sends text, because WhatsApp does not let a
+    link carry a picture.<br />
+    <strong>Send receipt image</strong> shares the receipt picture itself through your phone's
+    share menu, where you choose WhatsApp and then the contact. That extra tap is WhatsApp's
+    restriction, not a missing feature.<br />
+    The receipt number and society name are remembered on this device, so numbering carries on
     where you left off.
   </p>
 </div>
@@ -423,7 +463,8 @@
 
   function caption() {
     var d = currentData();
-    var lines = ["🙏 Thank you for your contribution" + (d.society ? " to " + d.society : "") + "."];
+    var lines = ["Thank you for your contribution" + (d.society ? " to " + d.society : "") + "."];
+    if (d.flatAndName) lines.push("", "Received from: " + d.flatAndName);
     if (d.receiptNo) lines.push("Receipt " + d.receiptNo);
     if (d.amount) lines.push("Amount: ₹" + groupIndian(d.amount) + " (" + inWords(d.amount) + ")");
     if (d.date) lines.push("Date: " + prettyDate(d.date));
@@ -466,6 +507,33 @@
     });
   });
 
+  /*
+   * Normalises to the wa.me form: country code, digits only.
+   * A 10-digit Indian mobile gets 91 prefixed; anything already carrying a
+   * country code is left alone.
+   */
+  function whatsappNumber(input) {
+    var digits = String(input || "").replace(/\D/g, "");
+    if (!digits) return null;
+    if (digits.length === 10 && /^[6-9]/.test(digits)) return "91" + digits;
+    if (digits.length === 12 && digits.indexOf("91") === 0) return digits;
+    if (digits.length === 11 && digits.charAt(0) === "0") return "91" + digits.slice(1);
+    if (digits.length >= 11 && digits.length <= 15) return digits;
+    return null;
+  }
+
+  $("sendNumber").addEventListener("click", function () {
+    var number = whatsappNumber($("mobile").value);
+    if (!number) {
+      toast("Enter their WhatsApp number first.");
+      $("mobile").focus();
+      return;
+    }
+    // Opens that specific chat with the message ready. This is the only way to
+    // target a number without a paid WhatsApp Business account.
+    window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(caption()), "_blank");
+  });
+
   $("print").addEventListener("click", function () { window.print(); });
 
   $("next").addEventListener("click", function () {
@@ -473,9 +541,188 @@
     $("flat").value = "";
     $("name").value = "";
     $("amount").value = "";
+    $("mobile").value = "";
     draw();
     $("flat").focus();
     toast("Ready for the next one.");
+  });
+
+  /* ----------------------------------------------------------------- OCR */
+  /*
+   * Reading a payment screenshot, entirely on this device.
+   *
+   * Tesseract is fetched from a CDN the first time it's needed rather than
+   * bundled, so the base page stays a small offline-capable file — scanning is
+   * the one feature that needs a connection. The image itself never leaves the
+   * phone: these screenshots carry the payer's name and UPI handle, and there
+   * is no reason to upload that anywhere.
+   *
+   * The reading is always shown for checking, never silently accepted. OCR
+   * misreads 501 as 601 often enough that a wrong receipt is a real risk.
+   */
+
+  var tesseractLoading = null;
+
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    tesseractLoading = tesseractLoading || new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      s.onload = function () { resolve(window.Tesseract); };
+      s.onerror = function () { reject(new Error("offline")); };
+      document.head.appendChild(s);
+    });
+    return tesseractLoading;
+  }
+
+  function setStatus(text, kind) {
+    var el = $("scanStatus");
+    el.textContent = text;
+    el.className = "scan-status" + (kind ? " " + kind : "");
+  }
+
+  /* Shrink before OCR: full-resolution phone photos are slow and no more
+     accurate, since the text is already large in the frame. */
+  function prepareImage(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error("Could not open that file.")); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error("That file isn't an image.")); };
+        img.onload = function () {
+          var max = 1600;
+          var scale = Math.min(1, max / Math.max(img.width, img.height));
+          var c = document.createElement("canvas");
+          c.width = Math.round(img.width * scale);
+          c.height = Math.round(img.height * scale);
+          var g = c.getContext("2d");
+          g.drawImage(img, 0, 0, c.width, c.height);
+
+          // Grayscale, then push mid-tones apart. Screenshot text is
+          // anti-aliased and low-contrast at the edges, which is most of why
+          // large bold digits get misread.
+          var d2 = g.getImageData(0, 0, c.width, c.height);
+          var px = d2.data;
+          for (var i = 0; i < px.length; i += 4) {
+            var lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            var v = lum < 110 ? 0 : lum > 175 ? 255 : (lum - 110) * (255 / 65);
+            px[i] = px[i + 1] = px[i + 2] = v;
+          }
+          g.putImageData(d2, 0, 0);
+          resolve(c);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* Amounts: prefer one attached to a rupee sign, then the largest plausible
+     number. Phone numbers, dates and UPI reference ids are excluded. */
+  function findAmount(text) {
+    var withSymbol = [];
+    var re = /(?:₹|rs\.?|inr)\s*([\d][\d,]*(?:\.\d{1,2})?)/gi;
+    var m;
+    while ((m = re.exec(text)) !== null) {
+      var v = Number(m[1].replace(/,/g, ""));
+      if (v > 0 && v < 1000000) withSymbol.push(v);
+    }
+    if (withSymbol.length) return withSymbol[0];
+
+    var loose = [];
+    var re2 = /\b(\d{2,7})\b/g;
+    while ((m = re2.exec(text)) !== null) {
+      var n = Number(m[1]);
+      // 10-digit strings are phone numbers; 4-digit ones are often years.
+      if (n >= 50 && n <= 200000 && m[1].length < 8 && !/^(19|20)\d{2}$/.test(m[1])) loose.push(n);
+    }
+    if (!loose.length) return null;
+    return loose.sort(function (a, b) { return b - a; })[0];
+  }
+
+  /* Names sit after "to"/"from"/"paid to" in UPI apps. */
+  function findName(text) {
+    var lines = text.split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
+    var labelled = /^(?:paid\s+to|received\s+from|to|from|name)\b[:\s-]*(.{2,40})$/i;
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(labelled);
+      if (m) {
+        var v = m[1].replace(/[^A-Za-z .'-]/g, "").trim();
+        if (v.length >= 3) return v;
+      }
+      // "To" alone on a line, with the name underneath.
+      if (/^(?:paid\s+to|to|from)$/i.test(lines[i]) && lines[i + 1]) {
+        var next = lines[i + 1].replace(/[^A-Za-z .'-]/g, "").trim();
+        if (next.length >= 3) return next;
+      }
+    }
+    return null;
+  }
+
+  /* "N-130", "B/404", "O 140" — a wing letter and a flat number. */
+  function findFlat(text) {
+    var m = text.match(/\b([A-Za-z])\s*[-\/]\s*(\d{2,4})\b/);
+    return m ? m[1].toUpperCase() + "-" + m[2] : null;
+  }
+
+  async function scan(file) {
+    if (!file) return;
+    $("scanRawWrap").hidden = true;
+    setStatus("Preparing the image…");
+
+    var Tesseract;
+    try {
+      Tesseract = await loadTesseract();
+    } catch (e) {
+      setStatus("Scanning needs an internet connection the first time. Type it in instead.", "warn");
+      return;
+    }
+
+    try {
+      var canvas = await prepareImage(file);
+      setStatus("Reading… this takes a few seconds.");
+
+      var result = await Tesseract.recognize(canvas, "eng", {
+        logger: function (info) {
+          if (info.status === "recognizing text") {
+            setStatus("Reading… " + Math.round((info.progress || 0) * 100) + "%");
+          }
+        }
+      });
+
+      var text = (result && result.data && result.data.text) || "";
+      $("scanRaw").textContent = text.trim() || "(nothing readable)";
+      $("scanRawWrap").hidden = false;
+
+      var amount = findAmount(text);
+      var name = findName(text);
+      var flat = findFlat(text);
+
+      var filled = [];
+      if (amount) { $("amount").value = amount; filled.push("amount"); }
+      if (name && !$("name").value.trim()) { $("name").value = name; filled.push("name"); }
+      if (flat && !$("flat").value.trim()) { $("flat").value = flat; filled.push("flat"); }
+      draw();
+
+      if (!filled.length) {
+        setStatus("Couldn't make out the details — please type them in.", "warn");
+      } else {
+        setStatus("Filled in the " + filled.join(" and ") + ". Please check it's right before sending.", "ok");
+      }
+    } catch (e) {
+      setStatus("Couldn't read that image. Please type the details in.", "warn");
+    }
+  }
+
+  $("scanCamera").addEventListener("click", function () { $("scanCameraInput").click(); });
+  $("scanFile").addEventListener("click", function () { $("scanFileInput").click(); });
+  ["scanCameraInput", "scanFileInput"].forEach(function (id) {
+    $(id).addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      scan(f);
+    });
   });
 
   ["receiptNo", "date", "flat", "name", "amount", "society"].forEach(function (id) {
