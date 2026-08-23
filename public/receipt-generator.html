@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v3 · two-pass reading</span>
+    <span class="build">build v6 · artwork + send</span>
   </p>
 
   <div class="card scan">
@@ -217,20 +217,17 @@
   </div>
 
   <div class="row">
-    <button id="sendNumber">Open their WhatsApp chat</button>
-    <button id="share" class="secondary">Send receipt image</button>
+    <button id="sendNumber">Send receipt on WhatsApp</button>
+    <button id="share" class="secondary">Share image only</button>
     <button id="download" class="secondary">Save image</button>
     <button id="print" class="secondary">Print</button>
     <button id="next" class="secondary">Next receipt</button>
   </div>
 
   <p class="note">
-    <strong>Open their WhatsApp chat</strong> goes straight to the number above with the receipt
-    details already typed — you just press send. It sends text, because WhatsApp does not let a
-    link carry a picture.<br />
-    <strong>Send receipt image</strong> shares the receipt picture itself through your phone's
-    share menu, where you choose WhatsApp and then the contact. That extra tap is WhatsApp's
-    restriction, not a missing feature.<br />
+    <strong>Send receipt on WhatsApp</strong> copies the receipt picture, then opens that
+    number's chat with the details already typed. Long-press the message box and paste to send the
+    picture too. WhatsApp does not let a link carry a file, so pasting is the one manual step.<br />
     The receipt number and society name are remembered on this device, so numbering carries on
     where you left off.
   </p>
@@ -244,6 +241,7 @@
 
   var NAVY = "#12357f", GOLD = "#c8a951", INK = "#3f3f46";
   var FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  var FONT_STACK = FONT;
   var STORE = "seva-receipt";
 
   var $ = function (id) { return document.getElementById(id); };
@@ -371,6 +369,73 @@
     }
   }
 
+  /*
+   * The society's own receipt artwork, used as the background.
+   *
+   * Drawing the values onto the committee's existing design means a generated
+   * receipt is visibly the same document residents already get, rather than a
+   * lookalike. Positions are fractions of the image, so replacing the artwork
+   * with a different size still lands the text on the ruled lines.
+   *
+   * Falls back to the drawn version if the file is missing, so the page never
+   * ends up with no receipt at all.
+   */
+  var template = null;
+  var templateTried = false;
+
+  var SLOTS = {
+    receiptNo: { x: 0.319, y: 0.578 },
+    date:      { x: 0.713, y: 0.578 },
+    flatName:  { x: 0.444, y: 0.666 },
+    amount:    { x: 0.291, y: 0.763 }
+  };
+
+  function loadTemplate() {
+    if (templateTried) return Promise.resolve(template);
+    templateTried = true;
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () { template = img; resolve(img); };
+      img.onerror = function () { resolve(null); };
+      img.src = "receipt-template.png";
+    });
+  }
+
+  /* Values overlaid on the artwork, sitting on its printed rules. */
+  function drawOnTemplate() {
+    var d = currentData();
+    canvas.width = template.naturalWidth;
+    canvas.height = template.naturalHeight;
+    var W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(template, 0, 0, W, H);
+
+    ctx.fillStyle = "#111";
+    ctx.textBaseline = "alphabetic";
+    var base = Math.round(H * 0.040);
+
+    function put(slot, value, scale) {
+      if (!value) return;
+      ctx.font = "600 " + Math.round(base * (scale || 1)) + "px " + FONT_STACK;
+      var x = W * slot.x, max = W * 0.93 - x;
+      var shown = String(value);
+      while (shown.length > 4 && ctx.measureText(shown).width > max) shown = shown.slice(0, -2) + "…";
+      ctx.fillText(shown, x, H * slot.y);
+    }
+
+    put(SLOTS.receiptNo, d.receiptNo);
+    put(SLOTS.date, prettyDate(d.date));
+    put(SLOTS.flatName, d.flatAndName);
+    put(SLOTS.amount, d.amount ? groupIndian(d.amount) : "", 1.12);
+
+    if (d.amount) {
+      ctx.fillStyle = "#3f3f46";
+      ctx.font = "italic 400 " + Math.round(base * 0.58) + "px " + FONT_STACK;
+      ctx.fillText(inWords(d.amount), W * SLOTS.amount.x, H * (SLOTS.amount.y + 0.036));
+    }
+  }
+
   function currentData() {
     var amountRaw = $("amount").value.replace(/[^0-9.]/g, "");
     var amount = amountRaw ? Number(amountRaw) : 0;
@@ -395,6 +460,12 @@
   }
 
   function draw() {
+    if (template) {
+      drawOnTemplate();
+      $("words").textContent = currentData().amount ? inWords(currentData().amount) : "";
+      save();
+      return;
+    }
     var d = currentData();
     var W = canvas.width, H = canvas.height;
 
@@ -543,16 +614,59 @@
     return null;
   }
 
+  /*
+   * Send both the picture and the details to one number.
+   *
+   * WhatsApp allows a link to carry a phone number OR an app to share a file —
+   * never both at once. So this does the nearest thing to it: copy the receipt
+   * image to the clipboard, then open that person's chat with the details
+   * already typed. The volunteer long-presses and pastes, and the resident gets
+   * the picture and the text together in one conversation.
+   *
+   * Where the clipboard is unavailable (older iOS, insecure origins) it falls
+   * back to the share sheet, which sends the image but asks for the contact.
+   */
   $("sendNumber").addEventListener("click", function () {
     var number = whatsappNumber($("mobile").value);
-    if (!number) {
-      toast("Enter their WhatsApp number first.");
-      $("mobile").focus();
-      return;
-    }
-    // Opens that specific chat with the message ready. This is the only way to
-    // target a number without a paid WhatsApp Business account.
-    window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(caption()), "_blank");
+
+    withBlob(function (blob) {
+      var file = new File([blob], fileName(), { type: "image/png" });
+
+      function openChat(pasteHint) {
+        if (!number) {
+          toast("Enter their WhatsApp number to open the chat.");
+          $("mobile").focus();
+          return;
+        }
+        window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(caption()), "_blank");
+        if (pasteHint) toast("Receipt copied — long-press the message box and paste it.");
+      }
+
+      var canCopy = navigator.clipboard && window.ClipboardItem && window.isSecureContext;
+      if (canCopy) {
+        navigator.clipboard
+          .write([new ClipboardItem({ "image/png": blob })])
+          .then(function () { openChat(true); })
+          .catch(function () {
+            // Clipboard refused — send the picture through the share sheet
+            // instead, which always works but needs the contact picking.
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              navigator.share({ files: [file], text: caption() }).catch(function () {});
+            } else {
+              openChat(false);
+            }
+          });
+        return;
+      }
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], text: caption() }).catch(function (err) {
+          if (err && err.name !== "AbortError") openChat(false);
+        });
+      } else {
+        openChat(false);
+      }
+    });
   });
 
   $("print").addEventListener("click", function () { window.print(); });
@@ -759,7 +873,7 @@
     if (amounts.length) {
       var la = document.createElement("span");
       la.className = "pick-label";
-      la.textContent = "Amount:";
+      la.textContent = "Tap the amount:";
       a.appendChild(la);
       amounts.forEach(function (c) {
         a.appendChild(chip("₹" + groupIndian(c.value), function () {
@@ -771,7 +885,7 @@
     if (names.length) {
       var ln = document.createElement("span");
       ln.className = "pick-label";
-      ln.textContent = "Name:";
+      ln.textContent = "Tap the name:";
       n.appendChild(ln);
       names.forEach(function (c) {
         var label = c.value + (c.recipient ? "  (who was paid)" : "");
@@ -835,19 +949,45 @@
       var names = nameCandidates(text);
       var flat = findFlat(text);
 
-      // Only the flat is filled outright — it has a distinctive shape that is
-      // hard to confuse with anything else on the screen. The amount and the
-      // name are offered as choices, because getting either wrong puts a false
-      // record in someone's hands.
       if (flat && !$("flat").value.trim()) $("flat").value = flat;
+
+      // Fill when the reading is unambiguous, ask when it isn't.
+      //
+      // One amount carrying a rupee sign is reliable enough to put straight in
+      // the field — making the volunteer tap a chip for it was needless work,
+      // and they read the amount off the screen anyway. Anything less certain
+      // stays a choice, because a wrong figure on a receipt is the one error
+      // nobody catches later.
+      var filled = [];
+      // One candidate means fill it, whatever rank it came from. OCR often
+      // fails to recognise the rupee glyph, so insisting on a currency-marked
+      // reading left the field empty on a screenshot it had actually read
+      // correctly. Ambiguity is more than one number, not a missing symbol.
+      var confidentAmount = amounts.length === 1;
+      if (confidentAmount) {
+        $("amount").value = amounts[0].value;
+        filled.push("₹" + groupIndian(amounts[0].value));
+      }
+
+      // Never auto-fill a name taken from "sent to" — that is the society, not
+      // the donor. Those are only ever offered as a labelled choice.
+      var donorNames = names.filter(function (c) { return !c.recipient; });
+      if (donorNames.length === 1 && !$("name").value.trim()) {
+        $("name").value = donorNames[0].value;
+        filled.push(donorNames[0].value);
+      }
+
       draw();
 
-      showPicks(amounts, names);
+      // Anything not filled outright is still offered.
+      showPicks(confidentAmount ? [] : amounts, filled.length > 1 ? [] : names);
 
-      if (!amounts.length && !names.length) {
-        setStatus("Couldn't make out the details — please type them in.", "warn");
-      } else {
+      if (filled.length) {
+        setStatus("Filled in " + filled.join(" and ") + ". Check it matches the screenshot.", "ok");
+      } else if (amounts.length || names.length) {
         setStatus("Tap the correct value below. Check it against the screenshot.", "ok");
+      } else {
+        setStatus("Couldn't make out the details — please type them in.", "warn");
       }
     } catch (e) {
       setStatus("Couldn't read that image. Please type the details in.", "warn");
@@ -871,6 +1011,7 @@
 
   restore();
   draw();
+  loadTemplate().then(function (img) { if (img) draw(); });
 })();
 </script>
 </body>
