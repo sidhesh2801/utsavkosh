@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v12 · seal text fixed</span>
+    <span class="build">build v13 · seal always shown</span>
   </p>
 
   <div class="card scan">
@@ -436,7 +436,8 @@
       ctx.fillText(inWords(d.amount), W * SLOTS.amount.x, H * (SLOTS.amount.y + 0.058));
     }
 
-    if (d.amount) { drawSeal(W, H); drawReceivedStamp(W, H, prettyDate(d.date)); }
+    drawSeal(W, H);
+    if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
   }
 
   /*
@@ -503,8 +504,8 @@
    * the two text arcs, the side dots and the flute-and-feather centre all
    * follow the committee's physical stamp.
    *
-   * Only drawn once an amount is present — a blank form must never look as
-   * though money has already been taken.
+   * Always drawn: it is the committee's own mark, not a claim about payment.
+   * Only the RECEIVED stamp is conditional on an amount.
    */
   var SEAL_INK = "#332e8c";
 
@@ -719,7 +720,8 @@
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(sigX + sigW + 12, 940); ctx.lineTo(W - 90, 940); ctx.stroke();
 
-    if (d.amount) { drawSeal(W, H); drawReceivedStamp(W, H, prettyDate(d.date)); }
+    drawSeal(W, H);
+    if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
 
     $("words").textContent = d.amount ? inWords(d.amount) : "";
     save();
