@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v6 · artwork + send</span>
+    <span class="build">build v7 · received stamp</span>
   </p>
 
   <div class="card scan">
@@ -432,8 +432,68 @@
     if (d.amount) {
       ctx.fillStyle = "#3f3f46";
       ctx.font = "italic 400 " + Math.round(base * 0.58) + "px " + FONT_STACK;
-      ctx.fillText(inWords(d.amount), W * SLOTS.amount.x, H * (SLOTS.amount.y + 0.036));
+      // Clear of the printed rule beneath the amount, not sitting on it.
+      ctx.fillText(inWords(d.amount), W * SLOTS.amount.x, H * (SLOTS.amount.y + 0.058));
     }
+
+    if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
+  }
+
+  /*
+   * The "RECEIVED" mark.
+   *
+   * Drawn like an inked rubber stamp — angled, double-ruled, slightly
+   * transparent so the printed rules stay visible underneath. Only appears once
+   * an amount is present: a blank form must never look like money has already
+   * been taken.
+   */
+  function drawReceivedStamp(W, H, dateText) {
+    var w = W * 0.255, h = H * 0.105;
+    var cx = W * 0.215, cy = H * 0.905;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-9 * Math.PI / 180);
+    ctx.globalAlpha = 0.82;
+
+    var green = "#1a7a4a";
+    ctx.strokeStyle = green;
+    ctx.fillStyle = green;
+
+    // Double rule, as a real stamp leaves.
+    ctx.lineWidth = Math.max(3, H * 0.006);
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.lineWidth = Math.max(2, H * 0.0028);
+    ctx.strokeRect(-w / 2 + H * 0.012, -h / 2 + H * 0.012, w - H * 0.024, h - H * 0.024);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "700 " + Math.round(H * 0.046) + "px " + FONT_STACK;
+    // Letter-spaced by hand; canvas has no letterSpacing everywhere yet.
+    var word = "RECEIVED";
+    var spacing = H * 0.009;
+    var widths = [];
+    var total = 0;
+    for (var i = 0; i < word.length; i++) {
+      var cw = ctx.measureText(word[i]).width;
+      widths.push(cw);
+      total += cw + (i < word.length - 1 ? spacing : 0);
+    }
+    var x = -total / 2;
+    var baseY = dateText ? -h * 0.10 : 0;
+    for (var j = 0; j < word.length; j++) {
+      ctx.fillText(word[j], x + widths[j] / 2, baseY);
+      x += widths[j] + spacing;
+    }
+
+    if (dateText) {
+      ctx.font = "600 " + Math.round(H * 0.021) + "px " + FONT_STACK;
+      ctx.fillText(dateText, 0, h * 0.26);
+    }
+
+    ctx.restore();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
   }
 
   function currentData() {
@@ -498,6 +558,8 @@
     ctx.fillText(sig, sigX, 930);
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(sigX + sigW + 12, 940); ctx.lineTo(W - 90, 940); ctx.stroke();
+
+    if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
 
     $("words").textContent = d.amount ? inWords(d.amount) : "";
     save();
