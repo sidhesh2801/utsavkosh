@@ -107,6 +107,16 @@
   .scan-status { margin: 10px 0 0; font-size: 13px; color: var(--ink-soft); min-height: 1.2em; }
   .scan-status.warn { color: #8f6410; font-weight: 500; }
   .scan-status.ok { color: #0f7a5f; font-weight: 500; }
+  .pick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  .pick-label { font-size: 12px; color: var(--ink-soft); margin-right: 2px; }
+  .chip {
+    font: inherit; font-size: 14px; font-weight: 600; padding: 6px 12px;
+    border-radius: 999px; border: 1px solid #d3cec2; background: #fff;
+    color: var(--ink); cursor: pointer;
+  }
+  .chip:hover { border-color: var(--brand); color: var(--brand); background: #fff; }
+  .chip.name { font-weight: 500; }
+
   #scanRawWrap { margin-top: 8px; font-size: 12px; color: var(--ink-soft); }
   #scanRaw {
     margin: 6px 0 0; padding: 8px; background: #fff; border-radius: 8px;
@@ -151,6 +161,10 @@
     <input type="file" id="scanCameraInput" accept="image/*" capture="environment" hidden />
     <input type="file" id="scanFileInput" accept="image/*" hidden />
     <p class="scan-status" id="scanStatus"></p>
+    <div id="scanPicks" hidden>
+      <div class="pick-row" id="pickAmounts"></div>
+      <div class="pick-row" id="pickNames"></div>
+    </div>
     <details id="scanRawWrap" hidden>
       <summary>What it read</summary>
       <pre id="scanRaw"></pre>
@@ -618,52 +632,133 @@
     });
   }
 
-  /* Amounts: prefer one attached to a rupee sign, then the largest plausible
-     number. Phone numbers, dates and UPI reference ids are excluded. */
-  function findAmount(text) {
-    var withSymbol = [];
-    var re = /(?:₹|rs\.?|inr)\s*([\d][\d,]*(?:\.\d{1,2})?)/gi;
-    var m;
-    while ((m = re.exec(text)) !== null) {
-      var v = Number(m[1].replace(/,/g, ""));
-      if (v > 0 && v < 1000000) withSymbol.push(v);
+  /*
+   * Candidate amounts, best guess first.
+   *
+   * Returns a list rather than a single answer, and the UI asks which is right.
+   * A receipt is a financial record: silently filling the wrong number is worse
+   * than filling nothing, and OCR on a phone screenshot is not reliable enough
+   * to be trusted unattended.
+   */
+  function amountCandidates(text) {
+    var seen = {};
+    var out = [];
+    function add(v, rank) {
+      if (!(v > 0) || v > 500000) return;
+      if (seen[v] !== undefined) { out[seen[v]].rank = Math.min(out[seen[v]].rank, rank); return; }
+      seen[v] = out.length;
+      out.push({ value: v, rank: rank });
     }
-    if (withSymbol.length) return withSymbol[0];
 
-    var loose = [];
-    var re2 = /\b(\d{2,7})\b/g;
-    while ((m = re2.exec(text)) !== null) {
-      var n = Number(m[1]);
-      // 10-digit strings are phone numbers; 4-digit ones are often years.
-      if (n >= 50 && n <= 200000 && m[1].length < 8 && !/^(19|20)\d{2}$/.test(m[1])) loose.push(n);
+    // Rank 0 — sat next to a currency marker. OCR often mangles the rupee
+    // glyph, so accept the common misreadings of it too.
+    var re = /(?:₹|rs\.?|inr|z|%|=)\s*([\d][\d,]*(?:\.\d{1,2})?)/gi;
+    var m;
+    while ((m = re.exec(text)) !== null) add(Number(m[1].replace(/,/g, "")), 0);
+
+    // Rank 1 — on a line that names an amount.
+    text.split(/\n+/).forEach(function (line) {
+      if (!/amount|paid|sent|debited|credited|received/i.test(line)) return;
+      var n = line.match(/([\d][\d,]{1,7}(?:\.\d{1,2})?)/);
+      if (n) add(Number(n[1].replace(/,/g, "")), 1);
+    });
+
+    // Rank 2 — anything else that could plausibly be a contribution.
+    // Timestamps and dates are stripped first: "6:42 pm" and "23 Aug 2026"
+    // were otherwise offering 42 and 23 as amounts.
+    var cleaned = text
+      .replace(/\b\d{1,2}\s*[:.]\s*\d{2}(?:\s*[:.]\s*\d{2})?\s*(?:am|pm)?/gi, " ")
+      .replace(/\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{2,4}\b/gi, " ")
+      .replace(/\b\d{1,2}\s*[\/-]\s*\d{1,2}\s*[\/-]\s*\d{2,4}\b/g, " ")
+      .replace(/\b\d{9,}\b/g, " ");
+
+    var re2 = /\b(\d{2,6})\b/g;
+    while ((m = re2.exec(cleaned)) !== null) {
+      var v = Number(m[1]);
+      if (/^(19|20)\d{2}$/.test(m[1])) continue;
+      // Below fifty is not a society contribution; it's a stray fragment.
+      if (v < 50 || v > 200000) continue;
+      add(v, 2);
     }
-    if (!loose.length) return null;
-    return loose.sort(function (a, b) { return b - a; })[0];
+
+    return out
+      .sort(function (a, b) { return a.rank - b.rank || b.value - a.value; })
+      .slice(0, 6);
   }
 
-  /* Names sit after "to"/"from"/"paid to" in UPI apps. */
-  function findName(text) {
+  /* Names near "to"/"from"/"paid to", plus any standalone capitalised line. */
+  function nameCandidates(text) {
     var lines = text.split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
-    var labelled = /^(?:paid\s+to|received\s+from|to|from|name)\b[:\s-]*(.{2,40})$/i;
+    var out = [];
+    function add(v) {
+      v = (v || "").replace(/[^A-Za-z .'-]/g, "").replace(/\s+/g, " ").trim();
+      if (v.length < 3 || v.length > 40) return;
+      if (/^(to|from|paid|sent|amount|date|time|upi|bank|successful|payment|transaction|id)$/i.test(v)) return;
+      if (out.indexOf(v) === -1) out.push(v);
+    }
+
+    var labelled = /^(?:paid\s+to|received\s+from|sent\s+to|to|from|name)\b[:\s-]*(.{2,40})$/i;
     for (var i = 0; i < lines.length; i++) {
       var m = lines[i].match(labelled);
-      if (m) {
-        var v = m[1].replace(/[^A-Za-z .'-]/g, "").trim();
-        if (v.length >= 3) return v;
-      }
-      // "To" alone on a line, with the name underneath.
-      if (/^(?:paid\s+to|to|from)$/i.test(lines[i]) && lines[i + 1]) {
-        var next = lines[i + 1].replace(/[^A-Za-z .'-]/g, "").trim();
-        if (next.length >= 3) return next;
-      }
+      if (m) add(m[1]);
+      if (/^(?:paid\s+to|sent\s+to|to|from)$/i.test(lines[i]) && lines[i + 1]) add(lines[i + 1]);
     }
-    return null;
+    // Fall back to lines that look like a person's name.
+    for (var j = 0; j < lines.length && out.length < 5; j++) {
+      if (/^[A-Z][a-z]+(?: [A-Z][a-z.]+){1,3}$/.test(lines[j])) add(lines[j]);
+    }
+    return out.slice(0, 5);
   }
 
-  /* "N-130", "B/404", "O 140" — a wing letter and a flat number. */
+  /* "N-130", "B/404", "O 140". */
   function findFlat(text) {
     var m = text.match(/\b([A-Za-z])\s*[-\/]\s*(\d{2,4})\b/);
     return m ? m[1].toUpperCase() + "-" + m[2] : null;
+  }
+
+  function chip(label, onClick, cls) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (cls ? " " + cls : "");
+    b.textContent = label;
+    b.addEventListener("click", function () {
+      onClick();
+      draw();
+      toast("Filled in " + label);
+    });
+    return b;
+  }
+
+  function showPicks(amounts, names) {
+    var wrap = $("scanPicks");
+    var a = $("pickAmounts");
+    var n = $("pickNames");
+    a.innerHTML = "";
+    n.innerHTML = "";
+
+    if (amounts.length) {
+      var la = document.createElement("span");
+      la.className = "pick-label";
+      la.textContent = "Amount:";
+      a.appendChild(la);
+      amounts.forEach(function (c) {
+        a.appendChild(chip("₹" + groupIndian(c.value), function () {
+          $("amount").value = c.value;
+        }));
+      });
+    }
+
+    if (names.length) {
+      var ln = document.createElement("span");
+      ln.className = "pick-label";
+      ln.textContent = "Name:";
+      n.appendChild(ln);
+      names.forEach(function (v) {
+        n.appendChild(chip(v, function () { $("name").value = v; }, "name"));
+      });
+    }
+
+    wrap.hidden = !(amounts.length || names.length);
   }
 
   async function scan(file) {
@@ -683,7 +778,11 @@
       var canvas = await prepareImage(file);
       setStatus("Reading… this takes a few seconds.");
 
-      var result = await Tesseract.recognize(canvas, "eng", {
+      // Two passes. The default layout analysis reads body text well but
+      // skips a large bold amount, classifying it as a graphic; sparse-text
+      // mode finds isolated text anywhere on the image. Neither alone is
+      // enough on a payment screenshot, so both run and the text is merged.
+      var worker = await Tesseract.createWorker("eng", 1, {
         logger: function (info) {
           if (info.status === "recognizing text") {
             setStatus("Reading… " + Math.round((info.progress || 0) * 100) + "%");
@@ -691,24 +790,37 @@
         }
       });
 
-      var text = (result && result.data && result.data.text) || "";
+      var text = "";
+      try {
+        var block = await worker.recognize(canvas);
+        text += (block && block.data && block.data.text) || "";
+
+        await worker.setParameters({ tessedit_pageseg_mode: "11" });
+        var sparse = await worker.recognize(canvas);
+        text += "\n" + ((sparse && sparse.data && sparse.data.text) || "");
+      } finally {
+        await worker.terminate();
+      }
       $("scanRaw").textContent = text.trim() || "(nothing readable)";
       $("scanRawWrap").hidden = false;
 
-      var amount = findAmount(text);
-      var name = findName(text);
+      var amounts = amountCandidates(text);
+      var names = nameCandidates(text);
       var flat = findFlat(text);
 
-      var filled = [];
-      if (amount) { $("amount").value = amount; filled.push("amount"); }
-      if (name && !$("name").value.trim()) { $("name").value = name; filled.push("name"); }
-      if (flat && !$("flat").value.trim()) { $("flat").value = flat; filled.push("flat"); }
+      // Only the flat is filled outright — it has a distinctive shape that is
+      // hard to confuse with anything else on the screen. The amount and the
+      // name are offered as choices, because getting either wrong puts a false
+      // record in someone's hands.
+      if (flat && !$("flat").value.trim()) $("flat").value = flat;
       draw();
 
-      if (!filled.length) {
+      showPicks(amounts, names);
+
+      if (!amounts.length && !names.length) {
         setStatus("Couldn't make out the details — please type them in.", "warn");
       } else {
-        setStatus("Filled in the " + filled.join(" and ") + ". Please check it's right before sending.", "ok");
+        setStatus("Tap the correct value below. Check it against the screenshot.", "ok");
       }
     } catch (e) {
       setStatus("Couldn't read that image. Please type the details in.", "warn");
