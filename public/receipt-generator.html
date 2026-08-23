@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v15 · peacock feather seal</span>
+    <span class="build">build v17 · real stamp</span>
   </p>
 
   <div class="card scan">
@@ -543,14 +543,26 @@
       for (var x = 0; x < w; x++) {
         var i = (y * w + x) * 4;
         var lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-        // Paper, and the darker table edge in a photo, both go. Only the ink
-        // — dark but distinctly blue — is kept.
-        var isInk = lum < 165 && px[i + 2] > px[i] - 10;
+        // Blueness, not darkness, is what separates the ink from the paper: a
+        // photo taken in room light has grey "white" paper at much the same
+        // luminance as a light impression, but the paper is near-neutral while
+        // the ink is strongly blue.
+        var blueness = px[i + 2] - px[i];
+        var isInk = blueness > 22 && lum < 175;
         if (!isInk) {
           px[i + 3] = 0;
         } else {
-          // Push the ink toward solid so a faint impression still reads.
-          px[i + 3] = Math.min(255, Math.round((165 - lum) * 3.2));
+          // Scale opacity by how blue it is, so a faint impression still reads
+          // without dragging the paper along with it.
+          // A gentle curve on purpose: real ink is uneven, and preserving the
+          // faint and patchy areas is what makes the impression look pressed
+          // rather than printed. Saturating it flattens that away.
+          px[i + 3] = Math.min(255, Math.round((blueness - 18) * 7));
+          // Repaint every kept pixel in one ink colour. The photograph carries
+          // the camera's colour cast and sensor noise; a stamp is a single
+          // pigment, and normalising it is what makes this read as a stamp
+          // rather than as a picture of one.
+          px[i] = 51; px[i + 1] = 46; px[i + 2] = 140;
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
           if (y < minY) minY = y;
@@ -691,6 +703,20 @@
   }
 
   function drawSeal(W, H) {
+    // The committee's own stamp, when the photograph is available.
+    if (stampImage) {
+      var size = H * 0.21;
+      var k = size / Math.max(stampImage.width, stampImage.height);
+      var sw = stampImage.width * k, sh = stampImage.height * k;
+      ctx.save();
+      ctx.globalAlpha = 0.92;
+      ctx.translate(W * 0.785, H * 0.878);
+      ctx.rotate(-4 * Math.PI / 180);
+      ctx.drawImage(stampImage, -sw / 2, -sh / 2, sw, sh);
+      ctx.restore();
+      return;
+    }
+
     // By the signature, where a committee member would actually stamp it.
     // Overlapping the rule slightly is what real ink does, so it is left to.
     var r = H * 0.078;
