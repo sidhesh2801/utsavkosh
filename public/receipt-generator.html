@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Seva Donation Receipt Generator</title>
+<!--
+  A single self-contained file. No server, no internet, no installation.
+
+  Everything — the drawing, the numbering, the sharing — runs inside this one
+  file, so it works from a phone's Downloads folder on aeroplane mode. Copy it
+  anywhere; there is nothing else to copy with it.
+
+  Every field is optional on purpose: a volunteer at a doorstep sometimes has a
+  name and no flat, or a flat and no name, and a receipt with a blank line is
+  more useful than a form that refuses to submit.
+-->
+<style>
+  :root {
+    --navy: #12357f;
+    --gold: #c8a951;
+    --ink: #1b1a17;
+    --ink-soft: #5b5850;
+    --ink-faint: #8d8981;
+    --line: #e5e1d8;
+    --canvas: #f7f6f2;
+    --brand: #a85200;
+    --brand-deep: #7a3c00;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 20px 16px calc(28px + env(safe-area-inset-bottom));
+    background: var(--canvas);
+    color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+  .sub { margin: 0 0 20px; color: var(--ink-soft); font-size: 14px; }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .grid { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+  .grid .full { grid-column: 1 / -1; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 5px; }
+  .opt { color: var(--ink-faint); font-weight: 400; }
+
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 16px; /* 16px stops iOS zooming the page on focus */
+    font-family: inherit;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid #d3cec2;
+    border-radius: 10px;
+  }
+  input:focus { outline: 2px solid var(--brand); outline-offset: 1px; border-color: var(--brand); }
+
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+
+  button {
+    appearance: none;
+    font: inherit;
+    font-weight: 500;
+    font-size: 14px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: var(--brand);
+    color: #fff;
+  }
+  button:hover { background: var(--brand-deep); }
+  button.secondary { background: #fff; color: var(--ink); border-color: #d3cec2; }
+  button.secondary:hover { background: #f2f0ea; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+  }
+
+  .words { margin: 8px 0 0; font-size: 13px; color: var(--ink-soft); font-style: italic; min-height: 1.2em; }
+  .note { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--ink-faint); }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s;
+    max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; }
+
+  /* Printing gives the paper receipt; everything else drops away. */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .card:not(.preview), h1, .sub, .row, .note, .words { display: none !important; }
+    .preview { border: 0; padding: 0; margin: 0; }
+    @page { size: A4 landscape; margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Seva Donation Receipt</h1>
+  <p class="sub">Fill in what you have — every field is optional. The receipt updates as you type.</p>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label for="receiptNo">Receipt No. <span class="opt">— counts up on its own</span></label>
+        <input id="receiptNo" inputmode="text" autocomplete="off" />
+      </div>
+      <div>
+        <label for="date">Date</label>
+        <input id="date" type="date" />
+      </div>
+      <div>
+        <label for="flat">Flat No. <span class="opt">— optional</span></label>
+        <input id="flat" placeholder="e.g. N-130" autocomplete="off" />
+      </div>
+      <div>
+        <label for="name">Name <span class="opt">— optional</span></label>
+        <input id="name" placeholder="e.g. Anup Deo" autocomplete="off" />
+      </div>
+      <div class="full">
+        <label for="amount">Amount ₹ <span class="opt">— optional</span></label>
+        <input id="amount" inputmode="decimal" placeholder="e.g. 501" autocomplete="off" />
+        <p class="words" id="words"></p>
+      </div>
+      <div class="full">
+        <label for="society">Society name <span class="opt">— printed under the heading</span></label>
+        <input id="society" placeholder="e.g. Wellington — Pride World City" autocomplete="off" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card preview">
+    <canvas id="canvas" width="1500" height="1000" aria-label="Receipt preview"></canvas>
+  </div>
+
+  <div class="row">
+    <button id="share">Send on WhatsApp</button>
+    <button id="download" class="secondary">Save image</button>
+    <button id="print" class="secondary">Print</button>
+    <button id="next" class="secondary">Next receipt</button>
+  </div>
+
+  <p class="note">
+    <strong>Send on WhatsApp</strong> opens your phone's share menu — choose WhatsApp, then the
+    contact. WhatsApp does not allow an app to attach a picture to a specific number
+    automatically, so picking the contact is the one step that stays manual.<br />
+    The receipt number and society name are remembered on this device, so the numbering carries on
+    where you left off.
+  </p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var NAVY = "#12357f", GOLD = "#c8a951", INK = "#3f3f46";
+  var FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  var STORE = "seva-receipt";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $("canvas");
+  var ctx = canvas.getContext("2d");
+
+  /* ---------------------------------------------------- amount in words */
+
+  var ONES = ["","one","two","three","four","five","six","seven","eight","nine","ten",
+    "eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+  var TENS = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+
+  function under1000(n) {
+    if (n === 0) return "";
+    if (n < 20) return ONES[n];
+    if (n < 100) {
+      var rest = n % 10;
+      return TENS[Math.floor(n / 10)] + (rest ? "-" + ONES[rest] : "");
+    }
+    var r = n % 100;
+    return ONES[Math.floor(n / 100)] + " hundred" + (r ? " and " + under1000(r) : "");
+  }
+
+  /* Indian numbering — lakh and crore, not millions. */
+  function inWords(amount) {
+    var rupees = Math.floor(Math.abs(amount));
+    if (!rupees) return "";
+    var parts = [];
+    var crore = Math.floor(rupees / 10000000);
+    var lakh = Math.floor((rupees % 10000000) / 100000);
+    var thousand = Math.floor((rupees % 100000) / 1000);
+    var rest = rupees % 1000;
+    if (crore) parts.push(under1000(crore) + " crore");
+    if (lakh) parts.push(under1000(lakh) + " lakh");
+    if (thousand) parts.push(under1000(thousand) + " thousand");
+    if (rest) parts.push(under1000(rest));
+    var w = parts.join(" ") + (rupees === 1 ? " rupee" : " rupees") + " only";
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }
+
+  function groupIndian(n) {
+    return Number(n).toLocaleString("en-IN");
+  }
+
+  /* ------------------------------------------------------------- drawing */
+
+  function drawCrest(cx, cy, r) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+
+    ctx.fillStyle = "#cfe6f5"; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = "#7fb069"; ctx.fillRect(cx - r, cy + r * 0.28, r * 2, r * 0.72);
+
+    var tw = r * 0.42, th = r, top = cy - r * 0.52;
+    [-r * 0.56, r * 0.14].forEach(function (dx) {
+      var x = cx + dx;
+      ctx.fillStyle = "#e8dcc4"; ctx.fillRect(x, top, tw, th);
+      ctx.strokeStyle = "#8a7a5c"; ctx.lineWidth = Math.max(1, r * 0.02);
+      ctx.strokeRect(x, top, tw, th);
+      ctx.fillStyle = "#6b5b3e";
+      for (var row = 0; row < 6; row++) for (var col = 0; col < 3; col++) {
+        ctx.fillRect(x + tw * (0.13 + col * 0.28), top + th * (0.09 + row * 0.145), tw * 0.17, th * 0.085);
+      }
+    });
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 0.14);
+    ctx.lineTo(cx + r * 0.27, cy + r * 0.48);
+    ctx.lineTo(cx - r * 0.27, cy + r * 0.48);
+    ctx.closePath();
+    ctx.fillStyle = "#bcd9ee"; ctx.fill();
+    ctx.strokeStyle = "#7d93a6"; ctx.stroke();
+
+    ctx.lineCap = "round";
+    [-r * 0.72, r * 0.72].forEach(function (dx) {
+      var x = cx + dx, base = cy + r * 0.5;
+      ctx.strokeStyle = "#8a6b3f"; ctx.lineWidth = r * 0.05;
+      ctx.beginPath(); ctx.moveTo(x, base);
+      ctx.quadraticCurveTo(x + r * 0.04, base - r * 0.3, x, base - r * 0.56); ctx.stroke();
+      ctx.strokeStyle = "#4f8f3a"; ctx.lineWidth = r * 0.06;
+      [-1, 1].forEach(function (dir) {
+        ctx.beginPath(); ctx.moveTo(x, base - r * 0.56);
+        ctx.quadraticCurveTo(x + dir * r * 0.22, base - r * 0.66, x + dir * r * 0.3, base - r * 0.46);
+        ctx.stroke();
+      });
+      ctx.beginPath(); ctx.moveTo(x, base - r * 0.56);
+      ctx.quadraticCurveTo(x - r * 0.07, base - r * 0.78, x, base - r * 0.86); ctx.stroke();
+    });
+
+    ctx.fillStyle = "#5f9e4a";
+    [-r * 0.43, r * 0.43].forEach(function (dx) {
+      ctx.beginPath(); ctx.arc(cx + dx, cy + r * 0.53, r * 0.12, 0, Math.PI * 2); ctx.fill();
+    });
+
+    ctx.restore();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = Math.max(2, r * 0.045);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  /* Label, then the value sitting on a ruled line — an empty value just
+     leaves the blank line, exactly like the printed pad. */
+  function field(x, y, width, label, value, strong, note) {
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = INK;
+    ctx.font = "400 38px " + FONT;
+    ctx.fillText(label, x, y);
+
+    var lineStart = x + ctx.measureText(label).width + 14;
+    var lineEnd = x + width;
+
+    ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(lineStart, y + 10); ctx.lineTo(lineEnd, y + 10); ctx.stroke();
+
+    if (value) {
+      ctx.fillStyle = "#111";
+      ctx.font = (strong ? "700 46px " : "500 38px ") + FONT;
+      var shown = String(value), max = lineEnd - lineStart - 12;
+      while (shown.length > 4 && ctx.measureText(shown).width > max) shown = shown.slice(0, -2) + "…";
+      ctx.fillText(shown, lineStart + 6, y);
+    }
+    if (note) {
+      ctx.fillStyle = INK;
+      ctx.font = "italic 400 26px " + FONT;
+      ctx.fillText(note, lineStart + 6, y + 44);
+    }
+  }
+
+  function currentData() {
+    var amountRaw = $("amount").value.replace(/[^0-9.]/g, "");
+    var amount = amountRaw ? Number(amountRaw) : 0;
+    var flat = $("flat").value.trim();
+    var name = $("name").value.trim();
+    return {
+      receiptNo: $("receiptNo").value.trim(),
+      date: $("date").value,
+      flatAndName: [flat, name].filter(Boolean).join("  ·  "),
+      amount: amount,
+      society: $("society").value.trim(),
+      name: name,
+      flat: flat
+    };
+  }
+
+  function prettyDate(iso) {
+    if (!iso) return "";
+    var d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return "";
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function draw() {
+    var d = currentData();
+    var W = canvas.width, H = canvas.height;
+
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 8; ctx.strokeRect(22, 22, W - 44, H - 44);
+
+    drawCrest(200, 250, 130);
+
+    ctx.fillStyle = NAVY;
+    ctx.textBaseline = "alphabetic";
+    ctx.font = "800 76px " + FONT;
+    ctx.fillText("Festival / Community", 380, 235);
+    ctx.fillText("Seva Donation Receipt", 380, 320);
+
+    if (d.society) {
+      ctx.fillStyle = INK; ctx.font = "500 30px " + FONT;
+      ctx.fillText(d.society, 380, 372);
+    }
+
+    field(90, 560, 640, "Receipt No.:", d.receiptNo);
+    field(800, 560, 610, "Date:", prettyDate(d.date));
+    field(90, 680, 1320, "Flat No. and Name:", d.flatAndName);
+    field(90, 800, 1320, "Amount: ₹", d.amount ? groupIndian(d.amount) : "", true,
+          d.amount ? inWords(d.amount) : "");
+
+    ctx.fillStyle = INK; ctx.font = "400 32px " + FONT;
+    var sig = "Authorized Signature:";
+    var sigW = ctx.measureText(sig).width;
+    var sigX = W - 90 - 340 - sigW;
+    ctx.fillText(sig, sigX, 930);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sigX + sigW + 12, 940); ctx.lineTo(W - 90, 940); ctx.stroke();
+
+    $("words").textContent = d.amount ? inWords(d.amount) : "";
+    save();
+  }
+
+  /* ------------------------------------------------------------- storage */
+
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        receiptNo: $("receiptNo").value,
+        society: $("society").value
+      }));
+    } catch (e) { /* private browsing — the page still works, it just forgets */ }
+  }
+
+  function restore() {
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) {}
+    $("society").value = saved.society || "";
+    $("receiptNo").value = saved.receiptNo || defaultReceiptNo();
+    $("date").value = new Date().toISOString().slice(0, 10);
+  }
+
+  /* "WPC/2026-27/0001" — Indian financial year, 1 April to 31 March. */
+  function defaultReceiptNo() {
+    var now = new Date();
+    var start = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+    var fy = start + "-" + String((start + 1) % 100).padStart(2, "0");
+    return "WPC/" + fy + "/0001";
+  }
+
+  /* Bumps the trailing number, keeping the prefix and padding. */
+  function nextReceiptNo(current) {
+    var m = String(current).match(/^(.*?)(\d+)(\D*)$/);
+    if (!m) return current;
+    var next = String(Number(m[2]) + 1).padStart(m[2].length, "0");
+    return m[1] + next + m[3];
+  }
+
+  /* ------------------------------------------------------------- actions */
+
+  function toast(message) {
+    var el = $("toast");
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(function () { el.classList.remove("show"); }, 2600);
+  }
+
+  function fileName() {
+    var no = $("receiptNo").value.trim().replace(/[\/\\\s]+/g, "-") || "receipt";
+    return "receipt-" + no + ".png";
+  }
+
+  function caption() {
+    var d = currentData();
+    var lines = ["🙏 Thank you for your contribution" + (d.society ? " to " + d.society : "") + "."];
+    if (d.receiptNo) lines.push("Receipt " + d.receiptNo);
+    if (d.amount) lines.push("Amount: ₹" + groupIndian(d.amount) + " (" + inWords(d.amount) + ")");
+    if (d.date) lines.push("Date: " + prettyDate(d.date));
+    return lines.join("\n");
+  }
+
+  function withBlob(done) {
+    canvas.toBlob(function (blob) {
+      if (!blob) { toast("Could not create the image on this device."); return; }
+      done(blob);
+    }, "image/png");
+  }
+
+  $("download").addEventListener("click", function () {
+    withBlob(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = fileName(); a.click();
+      URL.revokeObjectURL(url);
+      toast("Saved " + fileName());
+    });
+  });
+
+  $("share").addEventListener("click", function () {
+    withBlob(function (blob) {
+      var file = new File([blob], fileName(), { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], text: caption() }).catch(function (err) {
+          // Dismissing the share sheet is a normal action, not an error.
+          if (err && err.name !== "AbortError") toast("Could not open the share menu.");
+        });
+      } else {
+        // Desktop browsers mostly can't share files; saving is the way in.
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url; a.download = fileName(); a.click();
+        URL.revokeObjectURL(url);
+        toast("Saved the image — attach it in WhatsApp.");
+      }
+    });
+  });
+
+  $("print").addEventListener("click", function () { window.print(); });
+
+  $("next").addEventListener("click", function () {
+    $("receiptNo").value = nextReceiptNo($("receiptNo").value);
+    $("flat").value = "";
+    $("name").value = "";
+    $("amount").value = "";
+    draw();
+    $("flat").focus();
+    toast("Ready for the next one.");
+  });
+
+  ["receiptNo", "date", "flat", "name", "amount", "society"].forEach(function (id) {
+    $(id).addEventListener("input", draw);
+    $(id).addEventListener("change", draw);
+  });
+
+  restore();
+  draw();
+})();
+</script>
+</body>
+</html>
