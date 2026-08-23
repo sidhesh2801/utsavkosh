@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v7 · received stamp</span>
+    <span class="build">build v12 · seal text fixed</span>
   </p>
 
   <div class="card scan">
@@ -436,61 +436,221 @@
       ctx.fillText(inWords(d.amount), W * SLOTS.amount.x, H * (SLOTS.amount.y + 0.058));
     }
 
-    if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
+    if (d.amount) { drawSeal(W, H); drawReceivedStamp(W, H, prettyDate(d.date)); }
   }
 
   /*
-   * The "RECEIVED" mark.
+   * The "RECEIVED" mark, alongside the society seal.
    *
-   * Drawn like an inked rubber stamp — angled, double-ruled, slightly
-   * transparent so the printed rules stay visible underneath. Only appears once
-   * an amount is present: a blank form must never look like money has already
-   * been taken.
+   * Sits to the right of the seal and below the amount rule — clear of the
+   * signature line, which starts further right. Ink-red so it reads as a
+   * separate action from the blue society seal.
    */
   function drawReceivedStamp(W, H, dateText) {
-    var w = W * 0.255, h = H * 0.105;
-    var cx = W * 0.215, cy = H * 0.905;
+    var w = W * 0.175, h = H * 0.072;
+    var cx = W * 0.215, cy = H * 0.900;
 
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(-9 * Math.PI / 180);
-    ctx.globalAlpha = 0.82;
+    ctx.rotate(-7 * Math.PI / 180);
+    ctx.globalAlpha = 0.85;
 
-    var green = "#1a7a4a";
-    ctx.strokeStyle = green;
-    ctx.fillStyle = green;
+    var ink = "#a32b1e";
+    ctx.strokeStyle = ink;
+    ctx.fillStyle = ink;
 
-    // Double rule, as a real stamp leaves.
-    ctx.lineWidth = Math.max(3, H * 0.006);
+    ctx.lineWidth = Math.max(3, H * 0.005);
     ctx.strokeRect(-w / 2, -h / 2, w, h);
-    ctx.lineWidth = Math.max(2, H * 0.0028);
-    ctx.strokeRect(-w / 2 + H * 0.012, -h / 2 + H * 0.012, w - H * 0.024, h - H * 0.024);
+    ctx.lineWidth = Math.max(2, H * 0.0024);
+    ctx.strokeRect(-w / 2 + H * 0.009, -h / 2 + H * 0.009, w - H * 0.018, h - H * 0.018);
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "700 " + Math.round(H * 0.046) + "px " + FONT_STACK;
-    // Letter-spaced by hand; canvas has no letterSpacing everywhere yet.
+    ctx.font = "700 " + Math.round(H * 0.034) + "px " + FONT_STACK;
+
+    // Spaced by hand — canvas letterSpacing isn't dependable across browsers.
     var word = "RECEIVED";
-    var spacing = H * 0.009;
-    var widths = [];
-    var total = 0;
+    var spacing = H * 0.007;
+    var widths = [], total = 0;
     for (var i = 0; i < word.length; i++) {
       var cw = ctx.measureText(word[i]).width;
       widths.push(cw);
       total += cw + (i < word.length - 1 ? spacing : 0);
     }
     var x = -total / 2;
-    var baseY = dateText ? -h * 0.10 : 0;
+    var baseY = dateText ? -h * 0.13 : 0;
     for (var j = 0; j < word.length; j++) {
       ctx.fillText(word[j], x + widths[j] / 2, baseY);
       x += widths[j] + spacing;
     }
 
     if (dateText) {
-      ctx.font = "600 " + Math.round(H * 0.021) + "px " + FONT_STACK;
-      ctx.fillText(dateText, 0, h * 0.26);
+      ctx.font = "600 " + Math.round(H * 0.017) + "px " + FONT_STACK;
+      ctx.fillText(dateText, 0, h * 0.28);
     }
 
+    ctx.restore();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  }
+
+  /*
+   * The society's Janmashtami / Dahi Handi seal.
+   *
+   * Redrawn as vector rather than pasted as a photograph of the inked stamp:
+   * it stays sharp at print size and on a phone screen, and it doesn't carry
+   * the paper texture and smudging of a scan. The ink colour, the double ring,
+   * the two text arcs, the side dots and the flute-and-feather centre all
+   * follow the committee's physical stamp.
+   *
+   * Only drawn once an amount is present — a blank form must never look as
+   * though money has already been taken.
+   */
+  var SEAL_INK = "#332e8c";
+
+  /*
+   * Letters set along an arc.
+   *
+   * Angles are measured clockwise from twelve o'clock. Every letter is placed
+   * by rotating to its angle and stepping OUT to the ring — including the
+   * bottom arc, which is then turned a further half-turn so it reads the right
+   * way up. Stepping the other way for the bottom (the obvious-looking
+   * shortcut) lands those letters back on the top arc, upside down and on top
+   * of the text already there.
+   */
+  function arcText(text, radius, centreAngle, size, sweepDir) {
+    ctx.font = "700 " + Math.round(size) + "px " + FONT_STACK;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Angular width per glyph, so spacing follows the letterforms.
+    var angles = [], total = 0;
+    for (var i = 0; i < text.length; i++) {
+      var a = (ctx.measureText(text[i]).width + size * 0.22) / radius;
+      angles.push(a);
+      total += a;
+    }
+
+    var angle = centreAngle - (sweepDir * total) / 2;
+    for (var j = 0; j < text.length; j++) {
+      angle += (sweepDir * angles[j]) / 2;
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.translate(0, -radius);
+      if (sweepDir < 0) ctx.rotate(Math.PI);
+      ctx.fillText(text[j], 0, 0);
+      ctx.restore();
+      angle += (sweepDir * angles[j]) / 2;
+    }
+  }
+
+  /* Krishna's flute, laid horizontally, with a peacock feather rising from it. */
+  function sealCentre(r) {
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // Flute
+    ctx.strokeStyle = SEAL_INK;
+    ctx.lineWidth = r * 0.055;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.44, r * 0.02);
+    ctx.lineTo(r * 0.46, -r * 0.04);
+    ctx.stroke();
+    // Finger holes
+    ctx.fillStyle = SEAL_INK;
+    for (var i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.arc(r * (0.02 + i * 0.11), -r * (0.005 + i * 0.004), r * 0.028, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Tassels hanging from the flute
+    ctx.lineWidth = r * 0.032;
+    [[-0.30, 0.30], [-0.16, 0.24]].forEach(function (t) {
+      ctx.beginPath();
+      ctx.moveTo(r * t[0], r * 0.02);
+      ctx.lineTo(r * (t[0] - 0.06), r * (0.02 + t[1]));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(r * (t[0] - 0.14), r * (0.02 + t[1] * 0.75));
+      ctx.lineTo(r * (t[0] + 0.04), r * (0.02 + t[1] * 0.75));
+      ctx.stroke();
+    });
+
+    // Feather shaft
+    ctx.lineWidth = r * 0.03;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.30, -r * 0.02);
+    ctx.quadraticCurveTo(r * 0.02, -r * 0.20, -r * 0.16, -r * 0.42);
+    ctx.stroke();
+
+    // Barbs along the shaft
+    ctx.lineWidth = r * 0.016;
+    for (var b = 0; b < 7; b++) {
+      var t2 = b / 7;
+      var bx = r * (0.30 - 0.46 * t2);
+      var by = -r * (0.02 + 0.40 * t2);
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + r * 0.10, by - r * 0.07);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - r * 0.05, by - r * 0.10);
+      ctx.stroke();
+    }
+
+    // The eye of the feather
+    ctx.save();
+    ctx.translate(-r * 0.22, -r * 0.50);
+    ctx.rotate(-0.35);
+    ctx.lineWidth = r * 0.028;
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.22, r * 0.17, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.13, r * 0.10, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.055, r * 0.045, 0, 0, Math.PI * 2);
+    ctx.fillStyle = SEAL_INK; ctx.fill();
+    // Wispy barbs radiating from the eye
+    ctx.lineWidth = r * 0.014;
+    for (var k = 0; k < 9; k++) {
+      var ang = Math.PI * (0.62 + k * 0.10);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ang) * r * 0.20, Math.sin(ang) * r * 0.15);
+      ctx.lineTo(Math.cos(ang) * r * 0.34, Math.sin(ang) * r * 0.27);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawSeal(W, H) {
+    // By the signature, where a committee member would actually stamp it.
+    // Overlapping the rule slightly is what real ink does, so it is left to.
+    var r = H * 0.078;
+    var cx = W * 0.785;
+    var cy = H * 0.882;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-4 * Math.PI / 180);
+    // Slightly transparent, as ink on paper never prints solid.
+    ctx.globalAlpha = 0.88;
+    ctx.strokeStyle = SEAL_INK;
+    ctx.fillStyle = SEAL_INK;
+
+    ctx.lineWidth = r * 0.045;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = r * 0.028;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.68, 0, Math.PI * 2); ctx.stroke();
+
+    arcText("JANMASHTAMI", r * 0.855, 0, r * 0.165, 1);
+    arcText("DAHI HANDI", r * 0.855, Math.PI, r * 0.165, -1);
+
+    // The two dots that separate the arcs.
+    [-1, 1].forEach(function (side) {
+      ctx.beginPath();
+      ctx.arc(side * r * 0.855, 0, r * 0.042, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    sealCentre(r * 0.62);
     ctx.restore();
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
@@ -559,7 +719,7 @@
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(sigX + sigW + 12, 940); ctx.lineTo(W - 90, 940); ctx.stroke();
 
-    if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
+    if (d.amount) { drawSeal(W, H); drawReceivedStamp(W, H, prettyDate(d.date)); }
 
     $("words").textContent = d.amount ? inWords(d.amount) : "";
     save();
