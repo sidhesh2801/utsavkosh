@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v17 · real stamp</span>
+    <span class="build">build v18 · darker ink</span>
   </p>
 
   <div class="card scan">
@@ -557,12 +557,12 @@
           // A gentle curve on purpose: real ink is uneven, and preserving the
           // faint and patchy areas is what makes the impression look pressed
           // rather than printed. Saturating it flattens that away.
-          px[i + 3] = Math.min(255, Math.round((blueness - 18) * 7));
+          px[i + 3] = Math.min(255, Math.round((blueness - 16) * 10));
           // Repaint every kept pixel in one ink colour. The photograph carries
           // the camera's colour cast and sensor noise; a stamp is a single
           // pigment, and normalising it is what makes this read as a stamp
           // rather than as a picture of one.
-          px[i] = 51; px[i + 1] = 46; px[i + 2] = 140;
+          px[i] = 40; px[i + 1] = 35; px[i + 2] = 122;
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
           if (y < minY) minY = y;
@@ -709,7 +709,7 @@
       var k = size / Math.max(stampImage.width, stampImage.height);
       var sw = stampImage.width * k, sh = stampImage.height * k;
       ctx.save();
-      ctx.globalAlpha = 0.92;
+      ctx.globalAlpha = 0.97;
       ctx.translate(W * 0.785, H * 0.878);
       ctx.rotate(-4 * Math.PI / 180);
       ctx.drawImage(stampImage, -sw / 2, -sh / 2, sw, sh);
