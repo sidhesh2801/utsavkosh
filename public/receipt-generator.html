@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v13 · seal always shown</span>
+    <span class="build">build v15 · peacock feather seal</span>
   </p>
 
   <div class="card scan">
@@ -507,6 +507,82 @@
    * Always drawn: it is the committee's own mark, not a claim about payment.
    * Only the RECEIVED stamp is conditional on an amount.
    */
+  /*
+   * The committee's real stamp, as a photograph.
+   *
+   * Two things have to happen before a phone snap of an inked stamp can go on
+   * a receipt: the paper has to disappear, and the surrounding blank space has
+   * to be trimmed. So the image is thresholded — anything light becomes
+   * transparent, the ink is kept — and then cropped to the bounding box of
+   * what survives. The result sits on the receipt as a stamp rather than as a
+   * white photo tile.
+   *
+   * Falls back to the drawn seal when no file is present, so the receipt is
+   * never left without a mark.
+   */
+  var stampImage = null;
+  var stampTried = false;
+
+  function prepareStamp(img) {
+    var w = img.naturalWidth, h = img.naturalHeight;
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var g = c.getContext("2d");
+    g.drawImage(img, 0, 0);
+
+    var data;
+    try {
+      data = g.getImageData(0, 0, w, h);
+    } catch (e) {
+      return null; // cross-origin; use the drawn seal instead
+    }
+    var px = data.data;
+    var minX = w, minY = h, maxX = -1, maxY = -1;
+
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var i = (y * w + x) * 4;
+        var lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+        // Paper, and the darker table edge in a photo, both go. Only the ink
+        // — dark but distinctly blue — is kept.
+        var isInk = lum < 165 && px[i + 2] > px[i] - 10;
+        if (!isInk) {
+          px[i + 3] = 0;
+        } else {
+          // Push the ink toward solid so a faint impression still reads.
+          px[i + 3] = Math.min(255, Math.round((165 - lum) * 3.2));
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return null;
+
+    g.putImageData(data, 0, 0);
+
+    var cw = maxX - minX + 1, ch = maxY - minY + 1;
+    var out = document.createElement("canvas");
+    out.width = cw; out.height = ch;
+    out.getContext("2d").drawImage(c, minX, minY, cw, ch, 0, 0, cw, ch);
+    return out;
+  }
+
+  function loadStamp() {
+    if (stampTried) return Promise.resolve(stampImage);
+    stampTried = true;
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        stampImage = prepareStamp(img);
+        resolve(stampImage);
+      };
+      img.onerror = function () { resolve(null); };
+      img.src = "stamp.png";
+    });
+  }
+
   var SEAL_INK = "#332e8c";
 
   /*
@@ -545,80 +621,73 @@
     }
   }
 
-  /* Krishna's flute, laid horizontally, with a peacock feather rising from it. */
+  /*
+   * A peacock feather at the centre of the seal.
+   *
+   * Drawn in one ink colour, as a rubber stamp prints: the eye as nested
+   * ovals, soft plumes fanning around it, and a curved quill with fine barbs
+   * down its length. Proportioned to sit inside the inner ring without
+   * crowding the lettering.
+   */
   function sealCentre(r) {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-
-    // Flute
     ctx.strokeStyle = SEAL_INK;
+    ctx.fillStyle = SEAL_INK;
+
+    var eyeY = -r * 0.30;
+
+    // Soft plumes fanning out around the eye.
+    ctx.lineWidth = r * 0.035;
+    for (var i = 0; i < 13; i++) {
+      var a = -Math.PI * 0.94 + (i / 12) * Math.PI * 0.88;
+      var inner = r * 0.34;
+      var outer = r * (0.66 + (i % 2 ? 0.06 : 0));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * inner, eyeY + Math.sin(a) * inner * 0.9);
+      ctx.quadraticCurveTo(
+        Math.cos(a) * outer * 0.8, eyeY + Math.sin(a) * outer * 0.75,
+        Math.cos(a) * outer, eyeY + Math.sin(a) * outer * 0.9
+      );
+      ctx.stroke();
+    }
+
+    // The eye: three nested ovals, solid at the centre.
     ctx.lineWidth = r * 0.055;
     ctx.beginPath();
-    ctx.moveTo(-r * 0.44, r * 0.02);
-    ctx.lineTo(r * 0.46, -r * 0.04);
+    ctx.ellipse(0, eyeY, r * 0.36, r * 0.30, 0, 0, Math.PI * 2);
     ctx.stroke();
-    // Finger holes
-    ctx.fillStyle = SEAL_INK;
-    for (var i = 0; i < 4; i++) {
-      ctx.beginPath();
-      ctx.arc(r * (0.02 + i * 0.11), -r * (0.005 + i * 0.004), r * 0.028, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Tassels hanging from the flute
-    ctx.lineWidth = r * 0.032;
-    [[-0.30, 0.30], [-0.16, 0.24]].forEach(function (t) {
-      ctx.beginPath();
-      ctx.moveTo(r * t[0], r * 0.02);
-      ctx.lineTo(r * (t[0] - 0.06), r * (0.02 + t[1]));
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(r * (t[0] - 0.14), r * (0.02 + t[1] * 0.75));
-      ctx.lineTo(r * (t[0] + 0.04), r * (0.02 + t[1] * 0.75));
-      ctx.stroke();
-    });
 
-    // Feather shaft
-    ctx.lineWidth = r * 0.03;
+    ctx.lineWidth = r * 0.042;
     ctx.beginPath();
-    ctx.moveTo(r * 0.30, -r * 0.02);
-    ctx.quadraticCurveTo(r * 0.02, -r * 0.20, -r * 0.16, -r * 0.42);
+    ctx.ellipse(0, eyeY, r * 0.22, r * 0.18, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Barbs along the shaft
-    ctx.lineWidth = r * 0.016;
-    for (var b = 0; b < 7; b++) {
-      var t2 = b / 7;
-      var bx = r * (0.30 - 0.46 * t2);
-      var by = -r * (0.02 + 0.40 * t2);
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(bx + r * 0.10, by - r * 0.07);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(bx - r * 0.05, by - r * 0.10);
-      ctx.stroke();
-    }
+    ctx.beginPath();
+    ctx.ellipse(0, eyeY, r * 0.10, r * 0.085, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-    // The eye of the feather
-    ctx.save();
-    ctx.translate(-r * 0.22, -r * 0.50);
-    ctx.rotate(-0.35);
-    ctx.lineWidth = r * 0.028;
-    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.22, r * 0.17, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.13, r * 0.10, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.055, r * 0.045, 0, 0, Math.PI * 2);
-    ctx.fillStyle = SEAL_INK; ctx.fill();
-    // Wispy barbs radiating from the eye
-    ctx.lineWidth = r * 0.014;
-    for (var k = 0; k < 9; k++) {
-      var ang = Math.PI * (0.62 + k * 0.10);
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(ang) * r * 0.20, Math.sin(ang) * r * 0.15);
-      ctx.lineTo(Math.cos(ang) * r * 0.34, Math.sin(ang) * r * 0.27);
-      ctx.stroke();
+    // Quill, curving away below the eye.
+    ctx.lineWidth = r * 0.055;
+    ctx.beginPath();
+    ctx.moveTo(0, eyeY + r * 0.30);
+    ctx.quadraticCurveTo(r * 0.10, r * 0.42, -r * 0.04, r * 0.86);
+    ctx.stroke();
+
+    // Fine barbs down the quill.
+    ctx.lineWidth = r * 0.026;
+    for (var b = 1; b <= 5; b++) {
+      var t = b / 6;
+      var qx = 0 + (r * 0.10 - 0) * 2 * t * (1 - t) + (-r * 0.04) * t * t;
+      var qy = (eyeY + r * 0.30) * (1 - t) * (1 - t) + r * 0.42 * 2 * t * (1 - t) + r * 0.86 * t * t;
+      var len = r * (0.20 - 0.02 * b);
+      [-1, 1].forEach(function (side) {
+        ctx.beginPath();
+        ctx.moveTo(qx, qy);
+        ctx.quadraticCurveTo(qx + side * len * 0.7, qy - len * 0.30, qx + side * len, qy - len * 0.15);
+        ctx.stroke();
+      });
     }
-    ctx.restore();
   }
 
   function drawSeal(W, H) {
@@ -1236,6 +1305,7 @@
   restore();
   draw();
   loadTemplate().then(function (img) { if (img) draw(); });
+  loadStamp().then(function (img) { if (img) draw(); });
 })();
 </script>
 </body>
