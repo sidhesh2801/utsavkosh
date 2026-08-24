@@ -21,9 +21,22 @@ declare
   v_admin    uuid;
   v_existing int;
 begin
+  -- Every entry has to be attributed to someone, because the ledger records who
+  -- entered what. Prefer a real admin if one exists; otherwise create a standing
+  -- committee record. It has no user_id, so it is a label on the ledger rather
+  -- than an account anyone can sign in as — and it means importing the back
+  -- catalogue does not depend on an Auth user having been created first.
   select id into v_admin from public.members where role = 'admin' order by joined_at limit 1;
+
   if v_admin is null then
-    raise exception 'No admin member found — run bootstrap.sql first.';
+    select id into v_admin from public.members where name = 'Festival Committee' limit 1;
+  end if;
+
+  if v_admin is null then
+    insert into public.members (name, email, mobile, wing, flat, role, status)
+    values ('Festival Committee', null, '', '', '', 'admin', 'approved')
+    returning id into v_admin;
+    raise notice 'Created a Festival Committee record to attribute these entries to.';
   end if;
 
   -- The drive these contributions belong to.
