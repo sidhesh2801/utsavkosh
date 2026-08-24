@@ -53,7 +53,7 @@ export default function HomePage() {
         ) : null}
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Option
           href="/donations"
           title="Donations"
@@ -75,6 +75,19 @@ export default function HomePage() {
             <>
               <path d="M5 3h14v18H5z" />
               <path d="M9 7.5h6M9 12h6M9 16.5h3" />
+            </>
+          }
+        />
+        <Option
+          href="/food-coupon"
+          title="Food coupon"
+          description="Register your flat and get a QR for the counter."
+          meta="No login needed"
+          icon={
+            <>
+              <path d="M4 4v6a3 3 0 0 0 6 0V4M7 10v10" />
+              <path d="M17 4c-1.5 2-2 4-2 6a2 2 0 0 0 2 2h1V4z" />
+              <path d="M17.5 12v8" />
             </>
           }
         />

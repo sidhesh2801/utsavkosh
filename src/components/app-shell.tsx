@@ -73,6 +73,18 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    href: "/food-coupon",
+    label: "Food coupon",
+    short: "Food",
+    icon: icon(
+      <>
+        <path d="M4 4v6a3 3 0 0 0 6 0V4M7 10v10" />
+        <path d="M17 4c-1.5 2-2 4-2 6a2 2 0 0 0 2 2h1V4z" />
+        <path d="M17.5 12v8" />
+      </>,
+    ),
+  },
+  {
     href: "/receipt-generator.html",
     label: "Write a receipt",
     short: "Receipt",
