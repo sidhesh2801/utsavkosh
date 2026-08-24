@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   currentActivityId,
+  flatProblem,
   foodConfigured,
   isCommittee,
   maxMembers,
@@ -66,8 +67,12 @@ export async function POST(request: Request) {
   }
 
   const { wing, flat } = normaliseFlat(body.wing ?? "", body.flat ?? "");
-  if (!walkIn && (!wing || !flat)) {
-    return NextResponse.json({ error: "Please enter your wing and flat number." }, { status: 400 });
+  if (!walkIn) {
+    if (!wing) {
+      return NextResponse.json({ error: "Please choose your tower." }, { status: 400 });
+    }
+    const problem = flatProblem(flat);
+    if (problem) return NextResponse.json({ error: problem }, { status: 400 });
   }
 
   const activityId = await currentActivityId(db);

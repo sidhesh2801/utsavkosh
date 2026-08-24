@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { useSociety } from "@/lib/store";
+import { flatProblem } from "@/lib/food";
 import { Button, Card, Field, PageHeader } from "@/components/ui";
 import { useCommitteeSession } from "@/components/ledger-admin";
 
@@ -111,10 +112,13 @@ export default function FoodCouponPage() {
               <input
                 className="field tnum"
                 value={flat}
-                onChange={(e) => setFlat(e.target.value)}
+                onChange={(e) => setFlat(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 required
                 inputMode="numeric"
-                placeholder="130"
+                pattern="\d{3,4}"
+                minLength={3}
+                maxLength={4}
+                placeholder="1305"
               />
             </Field>
             <Field label="No. of persons" required>
@@ -132,6 +136,16 @@ export default function FoodCouponPage() {
               </select>
             </Field>
           </div>
+
+          {/* Checked as they type: being told at submit which of six fields is
+              wrong is the slowest possible way to find out. */}
+          {flat.length >= 3 && flatProblem(flat) ? (
+            <p className="text-xs leading-relaxed text-warn">{flatProblem(flat)}</p>
+          ) : (
+            <p className="text-xs text-ink-faint">
+              Flat numbers run from 101 to 2306 — floor, then the flat on it.
+            </p>
+          )}
 
           <Field label="Mobile" hint="So the committee can reach you if there's a problem.">
             <input

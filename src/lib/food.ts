@@ -83,9 +83,40 @@ export function toPublicCoupon(row: Record<string, unknown>): PublicCoupon {
   };
 }
 
+/**
+ * Twenty-three floors, six flats on each: 101 to 2306.
+ *
+ * The last two digits are the flat on that floor and the digits before them are
+ * the floor, so 1802 is the second flat on the eighteenth. Checking both halves
+ * catches the transpositions people actually make — 2036 for 2306, 1810 for
+ * 1801 — which a length check waves straight through.
+ */
+export const FLOORS = 23;
+export const FLATS_PER_FLOOR = 6;
+export const FLAT_PATTERN = /^\d{3,4}$/;
+
 /** Normalises a flat reference so "n130", "N-130" and "n 130" are one flat. */
 export function normaliseFlat(wing: string, flat: string): { wing: string | null; flat: string | null } {
   const w = wing.trim().toUpperCase().replace(/[^A-Z]/g, "");
-  const f = flat.trim().replace(/[^0-9A-Za-z]/g, "");
+  const f = flat.trim().replace(/[^0-9]/g, "");
   return { wing: w || null, flat: f || null };
+}
+
+/** Null when the flat is acceptable, otherwise what to tell the resident. */
+export function flatProblem(flat: string | null): string | null {
+  if (!flat) return "Please enter your flat number.";
+  if (!FLAT_PATTERN.test(flat)) {
+    return "A flat number is 3 or 4 digits, from 101 to 2306.";
+  }
+
+  const floor = Number(flat.slice(0, -2));
+  const position = Number(flat.slice(-2));
+
+  if (floor < 1 || floor > FLOORS) {
+    return `There are ${FLOORS} floors, so a flat number runs from 101 to ${FLOORS}0${FLATS_PER_FLOOR}.`;
+  }
+  if (position < 1 || position > FLATS_PER_FLOOR) {
+    return `Each floor has ${FLATS_PER_FLOOR} flats, so floor ${floor} runs from ${floor}01 to ${floor}0${FLATS_PER_FLOOR}.`;
+  }
+  return null;
 }

@@ -247,8 +247,10 @@ function WalkInForm() {
         <input
           className="field tnum"
           value={flat}
-          onChange={(e) => setFlat(e.target.value)}
+          onChange={(e) => setFlat(e.target.value.replace(/\D/g, "").slice(0, 4))}
           inputMode="numeric"
+          maxLength={4}
+          placeholder="1305"
         />
       </Field>
       <Field label="No. of persons" required>
