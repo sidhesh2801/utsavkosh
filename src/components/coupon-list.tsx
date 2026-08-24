@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { csvName, downloadCsv, toCsv } from "@/lib/csv";
 import { useSociety } from "@/lib/store";
-import { Button, Card, Field, SectionTitle } from "./ui";
+import { Button, Card, Field, SectionTitle, useConfirm, useToast } from "./ui";
 
 interface Coupon {
   code: string;
@@ -32,6 +32,8 @@ export function CouponList({ refreshKey }: { refreshKey?: number }) {
   const [coupons, setCoupons] = useState<Coupon[] | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     const res = await fetch("/api/coupons/list");
@@ -144,6 +146,7 @@ export function CouponList({ refreshKey }: { refreshKey?: number }) {
                 <th className="px-4 py-2.5 text-right font-semibold">People</th>
                 <th className="px-4 py-2.5 text-right font-semibold">Eaten</th>
                 <th className="px-4 py-2.5 font-semibold">Status</th>
+                <th className="px-4 py-2.5 font-semibold" />
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -169,6 +172,34 @@ export function CouponList({ refreshKey }: { refreshKey?: number }) {
                     ) : (
                       <span className="text-ink-faint">Not yet</span>
                     )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right">
+                    {/* Only before anyone has eaten: after that the coupon is a
+                        record of food that left the counter. */}
+                    {c.served === 0 ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (
+                            !confirm(
+                              `Remove the registration for ${c.flat || c.name}? That frees the flat so the right family can register.`,
+                            )
+                          )
+                            return;
+                          const res = await fetch(`/api/coupons/${c.code}`, { method: "DELETE" });
+                          const payload = await res.json();
+                          if (!res.ok) {
+                            toast(payload.error ?? "Could not remove it.", "error");
+                            return;
+                          }
+                          toast(`${payload.freed || c.name} is free to register again.`);
+                          void load();
+                        }}
+                        className="text-[0.6875rem] font-medium text-debit underline decoration-debit/30 underline-offset-2"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}
