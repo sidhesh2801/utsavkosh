@@ -257,3 +257,194 @@ export function DeleteExpenseButton({ id, onDone }: { id: string; onDone: () => 
     </button>
   );
 }
+
+/* ------------------------------------------------- recording cash by hand */
+
+/**
+ * Records a contribution that never touches the bank — cash at a door.
+ *
+ * Money paid by UPI or transfer should arrive through the daily statement
+ * import instead, so it is reconciled against the account rather than typed
+ * twice. Cash is the case the statement can never see.
+ */
+export function AddDonationButton({ onSaved }: { onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        Add cash donation
+      </Button>
+      {open ? (
+        <DonationSheet
+          onClose={() => setOpen(false)}
+          onSaved={() => {
+            setOpen(false);
+            onSaved();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const { data } = useSociety();
+  const toast = useToast();
+
+  const [donorName, setDonorName] = useState("");
+  const [wing, setWing] = useState("");
+  const [flat, setFlat] = useState("");
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("cash");
+  const [receivedAt, setReceivedAt] = useState(toDateInput(new Date().toISOString()));
+  const [activityId, setActivityId] = useState(data.activities[0]?.id ?? "");
+  const [isTenant, setIsTenant] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/donations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          donorName, wing, flat, amount: Number(amount), method,
+          receivedAt, activityId: activityId || null, isTenant,
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(payload.error ?? "Could not save the entry.");
+        setBusy(false);
+        return;
+      }
+      toast(`${donorName} recorded.`);
+      onSaved();
+    } catch {
+      setError("Couldn't reach the server. Check your connection.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Record a cash contribution"
+      description="For money handed over in person. Anything paid by UPI arrives through the daily statement import."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy ? "Saving…" : "Record"}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="space-y-3.5">
+        <Field label="Contributor's name" required>
+          <input
+            className="field"
+            value={donorName}
+            onChange={(e) => setDonorName(e.target.value)}
+            required
+            placeholder="e.g. Anup Deo"
+          />
+        </Field>
+
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Tower">
+            {data.society.wings.length ? (
+              <select className="field" value={wing} onChange={(e) => setWing(e.target.value)}>
+                <option value="">—</option>
+                {data.society.wings.map((w) => (
+                  <option key={w} value={w}>{w}</option>
+                ))}
+              </select>
+            ) : (
+              <input className="field" value={wing} onChange={(e) => setWing(e.target.value)} />
+            )}
+          </Field>
+          <Field label="Flat">
+            <input
+              className="field tnum"
+              value={flat}
+              onChange={(e) => setFlat(e.target.value)}
+              inputMode="numeric"
+            />
+          </Field>
+          <Field label="Amount ₹" required>
+            <input
+              className="field tnum"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+              required
+            />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Paid by">
+            <select className="field" value={method} onChange={(e) => setMethod(e.target.value)}>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m}>{methodLabel(m)}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Date received" required>
+            <input
+              className="field"
+              type="date"
+              value={receivedAt}
+              onChange={(e) => setReceivedAt(e.target.value)}
+              required
+            />
+          </Field>
+        </div>
+
+        <Field label="For which activity">
+          <select
+            className="field"
+            value={activityId}
+            onChange={(e) => setActivityId(e.target.value)}
+          >
+            <option value="">General society fund</option>
+            {data.activities.map((a) => (
+              <option key={a.id} value={a.id}>{a.title}</option>
+            ))}
+          </select>
+        </Field>
+
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-lg bg-surface-sunken px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={isTenant}
+            onChange={(e) => setIsTenant(e.target.checked)}
+            className="h-4 w-4 accent-[var(--color-brand)]"
+          />
+          <span className="text-[0.8125rem] text-ink">Paying resident is a tenant</span>
+        </label>
+
+        {method !== "cash" ? (
+          <p className="rounded-lg bg-warn-soft px-3 py-2.5 text-xs leading-relaxed text-warn">
+            This will also appear in tonight&apos;s statement import. The importer skips a match
+            on name, amount and date — but if any of those differ you will get two entries for
+            one contribution.
+          </p>
+        ) : null}
+
+        {error ? (
+          <p role="alert" className="rounded-lg bg-debit-soft px-3 py-2.5 text-[0.8125rem] text-debit">
+            {error}
+          </p>
+        ) : null}
+      </form>
+    </Sheet>
+  );
+}

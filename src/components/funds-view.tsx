@@ -27,6 +27,7 @@ import { CategoryBars, MonthlyFlowChart } from "./charts";
 import { ShareButton } from "./share";
 import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
 import {
+  AddDonationButton,
   AddExpenseButton,
   CommitteeSignInHint,
   DeleteExpenseButton,
@@ -311,6 +312,8 @@ function Ledger({ limit }: { limit?: number }) {
 /* --------------------------------------------------------------- donations */
 
 function DonationsTab({ canCollect }: { canCollect: boolean; isAdmin?: boolean }) {
+  // Same committee session as the ledger and the receipt generator.
+  const committee = useCommitteeSession();
   const { data } = useSociety();
   const [query, setQuery] = useState("");
   const [activityFilter, setActivityFilter] = useState("all");
@@ -395,11 +398,11 @@ function DonationsTab({ canCollect }: { canCollect: boolean; isAdmin?: boolean }
           ]}
           rows={csvRows}
         />
-        {canCollect ? (
-          <Button size="md" onClick={() => setAdding(true)} className="ml-auto">
-            Record contribution
-          </Button>
-        ) : null}
+        <div className="ml-auto">
+          {committee.authenticated ? (
+            <AddDonationButton onSaved={() => window.location.reload()} />
+          ) : null}
+        </div>
       </div>
 
       <p className="text-[0.8125rem] text-ink-soft">
