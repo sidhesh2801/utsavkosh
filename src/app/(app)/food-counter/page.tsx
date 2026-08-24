@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSociety } from "@/lib/store";
 import { Button, Card, EmptyState, Field, PageHeader, SectionTitle, useToast } from "@/components/ui";
 import { useCommitteeSession } from "@/components/ledger-admin";
+import { ScanButton } from "@/components/coupon-scanner";
 
 interface Summary {
   coupons: number;
@@ -92,6 +93,9 @@ export default function FoodCounterPage() {
         <Tile label="Coupons" value={summary?.coupons ?? 0} />
         <Tile label="Issued at counter" value={summary?.walk_ins ?? 0} />
       </div>
+
+      {/* The main action at a counter, so it sits above everything else. */}
+      <ScanButton onServed={load} />
 
       <Card className="p-4">
         <SectionTitle>Issue a coupon here</SectionTitle>
