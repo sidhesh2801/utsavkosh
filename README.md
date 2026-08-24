@@ -4,8 +4,7 @@
 donations received, exactly where the funds were spent, what's planned next, and a photo
 gallery of every celebration.
 
-Set up for **Wellington — Pride World City** (with sample data) — replace it with your own records
-from **Manage → Starting with your own society**.
+Running for **Wellington — Pride World City**, Charholi Budruk, Pune.
 
 **Running it day to day — daily imports, cash entries, passwords, current
 state: [OPERATIONS.md](OPERATIONS.md).**
@@ -21,28 +20,26 @@ npm run dev          # http://localhost:3000
 
 ### Who signs in, and who doesn't
 
-**Only two kinds of account exist.** Residents have no login at all — with 1800 flats,
-requiring 1800 signups (and an approval queue for the committee to work through) would
-kill adoption before the first festival.
+**Residents need no account.** They read the donations list and the ledger with
+no login — that is the point of the app, and requiring 1800 signups would have
+killed it before the first festival.
 
-| | Signs in? | Can do |
-|---|---|---|
-| **Committee admin** — `secretary@wellingtonpwc.in` | Yes | Everything: funds, expenses, activities, gallery, payment QRs, members |
-| **Volunteer** — `vikram.c@example.com` | Yes | Record collections and issue receipts. Cannot edit expenses, delete entries, or verify their own handovers |
-| **Resident / anyone with the link** | **No account needed** | View the accounts, gallery and activities, and look up their own receipt |
+**The committee has one password**, covering the receipt generator, adding a
+cash donation, and adding or removing a ledger entry. Set `GENERATOR_PASSWORD`
+in the environment; unset, it falls back to `admin`.
 
-Password for both sample accounts: `demo1234` — the login screen has buttons that fill
-them in.
+| Route | Login |
+|---|---|
+| `/`, `/donations`, `/ledger`, `/activities`, `/gallery` | none |
+| `/receipt-generator.html` | committee password |
+| Adding a donation or expense | committee password |
 
-**Public routes:** `/`, `/funds`, `/funds/report`, `/activities`, `/gallery`, `/receipt`.
-**Login required:** `/collect`, `/admin`.
-
-A public ledger means donor names and amounts sit on a URL anyone with the link can open.
-That mirrors the chanda list going up on the notice board, but a search engine is a
-different matter — so the app sends `robots: noindex`. If a resident objects to their name
-being visible, the next step would be masking names behind flat numbers on the public view.
+`/collect`, `/admin` and `/login` are from an earlier design that used Supabase
+Auth accounts. No such accounts exist, so those screens are unreachable in
+practice and are candidates for removal.
 
 ---
+
 
 ## What's in it
 
@@ -68,59 +65,21 @@ being visible, the next step would be masking names behind flat numbers on the p
 
 ---
 
-## ⚠️ Current state of the data — read this before deploying
+## Where the data lives
 
-Right now all data lives **in each visitor's own browser** (IndexedDB). That's ideal for
-trying the app out, but it means:
+A hosted Postgres database (Supabase), so what one committee member records,
+every resident sees. `supabase/schema.sql` creates the tables, row-level
+security and storage buckets and is safe to re-run; `supabase/migrations/`
+holds the changes since, in order.
 
-> If you deploy this as-is and send the link to 50 residents, **each of them gets their own
-> private copy.** Nobody sees anybody else's entries. It is not yet a shared register.
+Without `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` the app
+falls back to storing everything in the visitor's own browser. That is a
+development convenience, not a mode to deploy in — each visitor would get their
+own private copy.
 
-Live updates currently work **across tabs on one device** (via `BroadcastChannel`) — enough
-to see the behaviour with two windows side by side.
+**Day-to-day operation — daily statement imports, cash entries, credentials,
+current state — is in [OPERATIONS.md](OPERATIONS.md).**
 
-**To make it a real shared app**, the data layer needs a hosted database. See below.
-
----
-
-## Turning on the shared database (Supabase)
-
-Everything is written and waiting for two values. Three steps:
-
-**1. Create the project** — [supabase.com](https://supabase.com) → New project → region
-**Mumbai (ap-south-1)**. Save the database password somewhere safe.
-
-**2. Create the tables** — Dashboard → **SQL Editor** → New query → paste all of
-[`supabase/schema.sql`](supabase/schema.sql) → **Run**. Safe to re-run.
-
-**3. Point the app at it** — copy `.env.example` to `.env.local` and fill in the two values
-from Project Settings → **API**:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-```
-
-On Vercel, add the same two under Settings → Environment Variables, then redeploy. With
-them set the app is a shared register; without them it falls back to browser-local sample
-data, so nothing breaks if they're missing.
-
-> Never put the `service_role` key in either place — it bypasses every security policy.
-
-**Then create the first admin:** Dashboard → Authentication → Users → **Add user** (email +
-password). Then in SQL Editor:
->
-> ```sql
-> insert into public.societies (name, address, receipt_prefix, wings)
-> values ('Wellington — Pride World City', 'Pride World City, Charholi Budruk, Pune 412105',
->         'WPC', array['A','B','C','D']);
->
-> insert into public.members (user_id, name, email, role, status)
-> select id, 'Your Name', email, 'admin', 'approved' from auth.users limit 1;
-> ```
-
-After that, add volunteers from **Manage** in the app (create their Auth user the same way,
-then set their role).
 
 ### How the security works
 
@@ -130,9 +89,10 @@ nothing:
 - A **volunteer** can insert a donation only with `recorded_by` set to themselves, and only
   with `status = 'pending'`. The UPDATE policy's `WITH CHECK` pins their own rows to
   `pending`, so **a volunteer cannot mark their own cash as handed over.**
-- **Guests** (`anon`) can read the money tables — but only the *columns* on the notice
-  board. `donor_mobile` and the free-text `note` are revoked, so the public ledger cannot
-  leak phone numbers. This is why the app selects explicit column lists, not `select *`.
+- **Guests** (`anon`) read only the *columns* that belong on a notice board:
+  amounts, dates, names and flats. `donor_mobile`, the free-text `note` and the
+  payment screenshots are revoked. This is why the app selects explicit column
+  lists — a `select *` fails outright for a signed-out visitor.
 - **Receipt numbers are issued by a database trigger**, not the client. With thirty
   volunteers saving at once, two browsers computing "highest + 1" would hand out the same
   number; the trigger's atomic upsert keeps the series gapless. A second trigger makes a
@@ -143,17 +103,7 @@ nothing:
 - Deleting an activity with money against it is refused by a foreign key, not by a check
   the client could skip.
 
-### What changes when it's on
-
-| Local (now) | With Supabase |
-|---|---|
-| IndexedDB in each browser | Shared Postgres |
-| Sample passwords in a seed file | Supabase Auth (hashed server-side, reset e-mails) |
-| Images as data URLs | Storage buckets, images become URLs |
-| `BroadcastChannel` (tabs on one device) | Realtime (every phone, ~1s) |
-| Role checks in the client | Row-level security in the database |
-
-## Notes on the original local-only design
+## Notes on the design
 
 The code is written for this swap. All reads and writes go through one place —
 [`src/lib/store.tsx`](src/lib/store.tsx) — and the domain types in
