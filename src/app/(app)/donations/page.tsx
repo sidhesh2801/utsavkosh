@@ -1,9 +1,9 @@
 "use client";
 
-import { FundsView } from "../funds/page";
+import { FundsView } from "@/components/funds-view";
 
 /**
- * The contribution list, open to every resident with no sign-in.
+ * Open to every resident with no sign-in.
  */
 export default function DonationsPage() {
   return (
