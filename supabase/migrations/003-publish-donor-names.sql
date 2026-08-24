@@ -8,9 +8,14 @@
 --
 -- What stays private, because a notice board never showed it either:
 --   donor_mobile — a personal phone number
---   reference    — a UPI id identifies the payer's account
 --   note         — free text, could contain anything
 --   proof_path   — payment screenshots carry the payer's handle and phone
+--
+-- `reference` IS public, unlike in 002. A third of the Janmashtami collection
+-- came through the QR and carries no donor name at all, so the transaction
+-- reference is the only way one of those residents can find their own entry.
+-- A UTR is a transaction number: unlike a UPI handle it identifies nobody on
+-- its own.
 --
 -- Search engines are still blocked at the app level (robots: noindex), so the
 -- list is open to anyone with the link rather than published to the web.
@@ -26,14 +31,15 @@ grant select (
   is_tenant,
   amount,
   method,
+  reference,
   activity_id,
   received_at,
   status,
   created_at
 ) on public.donations to anon;
 
--- Check: expect the twelve columns above, and none of donor_mobile, reference,
--- note or proof_path.
+-- Check: expect the thirteen columns above, and none of donor_mobile, note or
+-- proof_path.
 select string_agg(column_name, ', ' order by column_name) as anon_can_read
 from information_schema.column_privileges
 where grantee = 'anon'

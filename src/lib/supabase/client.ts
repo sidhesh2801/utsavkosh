@@ -45,7 +45,7 @@ export function getSupabase(): SupabaseClient | null {
 // Typed as `string`, not a literal: supabase-js parses literal select
 // strings to infer row types, and a runtime-chosen list defeats that parser.
 export const PUBLIC_DONATION_COLUMNS: string =
-  "id, receipt_no, donor_name, wing, flat, is_tenant, amount, method, activity_id, received_at, status, created_at";
+  "id, receipt_no, donor_name, wing, flat, is_tenant, amount, method, reference, activity_id, received_at, status, created_at";
 
 /** Everything, for signed-in staff who need the mobile number and notes. */
 export const STAFF_DONATION_COLUMNS: string = "*";

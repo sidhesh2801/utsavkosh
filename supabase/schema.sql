@@ -421,7 +421,7 @@ revoke all on public.payment_qrs from anon;
 -- note, and the payment screenshot.
 grant select (
   id, receipt_no, donor_name, wing, flat, is_tenant, amount, method,
-  activity_id, received_at, status, created_at
+  reference, activity_id, received_at, status, created_at
 ) on public.donations to anon;
 
 grant select on public.societies  to anon;
