@@ -5,13 +5,14 @@
 --
 -- Two ideas drive the whole design:
 --
---  1. The MONEY is public; the DONORS are not. Residents read the accounts with
---     no login, so `anon` gets SELECT on the money tables — but only the columns
---     that carry amounts, dates and what the money was for. Donor names, flats,
---     phone numbers and UPI references are staff-only. So a resident can audit
---     every rupee without being able to see what their neighbour gave.
---     Column-level GRANTs do that, which is why the app selects explicit column
---     lists instead of `select *`.
+--  1. The LEDGER is public, the CONTACT DETAILS are not. Residents read the
+--     contribution list and the expense ledger with no login — who gave, which
+--     flat, how much, and every rupee spent — exactly as a chanda list and
+--     accounts go up on the notice board. What `anon` never gets is what a
+--     notice board never showed: phone numbers, UPI references, free-text
+--     notes, payment screenshots, and the member register. Column-level GRANTs
+--     do that, which is why the app selects explicit column lists rather than
+--     `select *`.
 --
 --  2. Roles are enforced by the DATABASE, not the browser. A volunteer cannot
 --     verify their own handover even if they tamper with the client, because the
@@ -414,12 +415,13 @@ revoke all on public.donations   from anon;
 revoke all on public.members     from anon;
 revoke all on public.payment_qrs from anon;
 
--- Donor identity is NOT public. Guests see every amount, date, method and the
--- festival it was for — enough to audit the money — but not who gave what, and
--- not a phone number or UPI reference. Only signed-in staff read those, because
--- they need them to issue receipts.
+-- The contribution list is public, as a chanda list on the notice board is:
+-- who gave, which flat, how much. What stays private is what a notice board
+-- never showed either — the phone number, the UPI reference, the free-text
+-- note, and the payment screenshot.
 grant select (
-  id, receipt_no, amount, method, activity_id, received_at, status, created_at
+  id, receipt_no, donor_name, wing, flat, is_tenant, amount, method,
+  activity_id, received_at, status, created_at
 ) on public.donations to anon;
 
 grant select on public.societies  to anon;

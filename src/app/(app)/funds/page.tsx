@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSociety } from "@/lib/store";
+import { useLookups, useSociety } from "@/lib/store";
 import {
   expensesByActivity,
   expensesByCategory,
@@ -10,7 +10,8 @@ import {
   monthlyFlow,
   pending,
 } from "@/lib/finance";
-import { money, shortDate } from "@/lib/format";
+import { money, shortDate, methodLabel, humanise, flatLabel } from "@/lib/format";
+import { csvName, downloadCsv, toCsv } from "@/lib/csv";
 import { fundSummaryMessage } from "@/lib/messages";
 import {
   Badge,
@@ -29,6 +30,40 @@ import type { Donation, Expense } from "@/lib/types";
 
 type Tab = "overview" | "donations" | "expenses";
 
+/**
+ * Downloads whatever is currently on screen — the filters applied above are
+ * part of what the reader is looking at, so exporting the unfiltered set would
+ * hand back something different from what they asked for.
+ */
+function ExportCsv({
+  label,
+  kind,
+  headers,
+  rows,
+}: {
+  label: string;
+  kind: string;
+  headers: string[];
+  rows: Array<Array<unknown>>;
+}) {
+  const { data } = useSociety();
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      disabled={!rows.length}
+      onClick={() => downloadCsv(csvName(data.society.name, kind), toCsv(headers, rows))}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M12 3v12m0 0 4-4m-4 4-4-4" stroke="currentColor" strokeWidth="1.7"
+          strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M4 17v2.5h16V17" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+      {label}
+    </Button>
+  );
+}
+
 export default function FundsPage() {
   const { data, isAdmin, canCollect } = useSociety();
   const [tab, setTab] = useState<Tab>("overview");
@@ -39,7 +74,7 @@ export default function FundsPage() {
     <div>
       <PageHeader
         title="Funds"
-        subtitle="Every rupee collected and every rupee spent, itemised. Nothing here is hidden from residents."
+        subtitle="Who contributed, where every rupee went, and what is left. Open to all residents — no sign-in needed."
         actions={
           <ShareButton
             size="sm"
@@ -73,8 +108,8 @@ export default function FundsPage() {
         {(
           [
             ["overview", "Overview"],
-            ["donations", `Donations (${data.donations.length})`],
-            ["expenses", `Expenses (${data.expenses.length})`],
+            ["donations", `Who contributed (${data.donations.length})`],
+            ["expenses", `Where it went (${data.expenses.length})`],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -281,6 +316,19 @@ function DonationsTab({ canCollect, isAdmin }: { canCollect: boolean; isAdmin: b
 
   const total = filtered.reduce((t, d) => t + d.amount, 0);
 
+  const { activityById } = useLookups();
+  const csvRows = filtered.map((d) => [
+    d.receiptNo,
+    shortDate(d.receivedAt),
+    d.donorName,
+    flatLabel(d.wing, d.flat),
+    d.isTenant ? "Tenant" : "Owner",
+    d.amount,
+    methodLabel(d.method),
+    d.activityId ? (activityById.get(d.activityId)?.title ?? "") : "General fund",
+    d.status === "verified" ? "Verified" : "Awaiting handover",
+  ]);
+
   return (
     <div className="space-y-4">
       {/* One filter row above everything it scopes. */}
@@ -316,6 +364,15 @@ function DonationsTab({ canCollect, isAdmin }: { canCollect: boolean; isAdmin: b
           <option value="verified">Verified only</option>
           <option value="pending">Awaiting handover</option>
         </select>
+        <ExportCsv
+          label="Download CSV"
+          kind="donations"
+          headers={[
+            "Receipt no.", "Date", "Name", "Flat", "Owner/Tenant",
+            "Amount (INR)", "Method", "Towards", "Status",
+          ]}
+          rows={csvRows}
+        />
         {canCollect ? (
           <Button size="md" onClick={() => setAdding(true)} className="ml-auto">
             Record contribution
@@ -385,6 +442,18 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
 
   const total = filtered.reduce((t, e) => t + e.amount, 0);
 
+  const { activityById } = useLookups();
+  const csvRows = filtered.map((e) => [
+    shortDate(e.paidAt),
+    e.title,
+    humanise(e.category),
+    e.vendor ?? "",
+    e.billNo ?? "",
+    e.amount,
+    methodLabel(e.method),
+    e.activityId ? (activityById.get(e.activityId)?.title ?? "") : "General spending",
+  ]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -409,6 +478,15 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
             </option>
           ))}
         </select>
+        <ExportCsv
+          label="Download CSV"
+          kind="expenses"
+          headers={[
+            "Date", "Item", "Category", "Vendor", "Bill no.",
+            "Amount (INR)", "Paid by", "For",
+          ]}
+          rows={csvRows}
+        />
         {isAdmin ? (
           <Button onClick={() => setAdding(true)} className="ml-auto">
             Record expense
