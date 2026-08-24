@@ -247,7 +247,7 @@ function WalkInForm() {
           inputMode="numeric"
         />
       </Field>
-      <Field label="How many" required>
+      <Field label="No. of persons" required>
         <div className="flex gap-2">
           <input
             className="field tnum"

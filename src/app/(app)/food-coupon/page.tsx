@@ -31,10 +31,21 @@ export default function FoodCouponPage() {
   const [flat, setFlat] = useState("");
   const [mobile, setMobile] = useState("");
   const [members, setMembers] = useState("2");
+  const [cap, setCap] = useState(5);
   const [coupon, setCoupon] = useState<Coupon | null>(null);
   const [already, setAlready] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetch("/api/coupons")
+        .then((r) => r.json())
+        .then((d) => setCap(Number(d.maxMembers) || 5))
+        .catch(() => setCap(5));
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -106,16 +117,19 @@ export default function FoodCouponPage() {
                 placeholder="130"
               />
             </Field>
-            <Field label="How many eating" required>
-              <input
+            <Field label="No. of persons" required>
+              {/* A dropdown, not a number box: it can only offer valid choices,
+                  so nobody types 20 and is refused after filling the form. */}
+              <select
                 className="field tnum"
-                type="number"
-                min={1}
-                max={30}
                 value={members}
                 onChange={(e) => setMembers(e.target.value)}
                 required
-              />
+              >
+                {Array.from({ length: cap }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
             </Field>
           </div>
 
@@ -142,8 +156,8 @@ export default function FoodCouponPage() {
       </Card>
 
       <p className="mt-4 text-xs leading-relaxed text-ink-faint">
-        One coupon per flat. Registering again shows you the same coupon rather than issuing a
-        second one.
+        One coupon per flat, for up to {cap} people. Registering again shows you the same coupon
+        rather than issuing a second one. For a larger family, please ask a committee member.
       </p>
 
       {committee.authenticated ? (

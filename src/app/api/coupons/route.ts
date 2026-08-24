@@ -9,6 +9,12 @@ import {
   toPublicCoupon,
 } from "@/lib/food";
 
+/** The cap, so the registration form can offer only valid choices. */
+export async function GET() {
+  if (!foodConfigured) return NextResponse.json({ maxMembers: 5 });
+  return NextResponse.json({ maxMembers: await maxMembers(serviceClient()) });
+}
+
 /**
  * Registering for a food coupon. Open to any resident with the link.
  *
