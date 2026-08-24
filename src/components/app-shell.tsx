@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSociety } from "@/lib/store";
 import { flatLabel } from "@/lib/format";
 import { Avatar, Badge, Skeleton } from "./ui";
+import { useCommitteeSession } from "./ledger-admin";
 
 interface NavItem {
   href: string;
@@ -106,6 +107,10 @@ const PRIVATE_PREFIXES = ["/collect", "/admin", "/receipt"];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { session, ready, data, signOut, isAdmin, canCollect } = useSociety();
+  // The committee session — the receipt generator's password — is what governs
+  // editing. Shown here only so it can be ended; there is no sign-in prompt,
+  // because a resident has no reason to be offered one.
+  const committee = useCommitteeSession();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -159,14 +164,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                 isAdmin={isAdmin}
                 onSignOut={signOut}
               />
-            ) : (
-              <Link
-                href="/login"
+            ) : committee.authenticated ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetch("/api/generator-login", { method: "DELETE" });
+                  window.location.reload();
+                }}
                 className="inline-flex items-center gap-1.5 rounded-[10px] border border-line-strong px-3 py-2 text-[0.8125rem] font-medium text-ink transition-colors hover:bg-surface-sunken"
               >
-                Committee sign in
-              </Link>
-            )}
+                Sign out
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
