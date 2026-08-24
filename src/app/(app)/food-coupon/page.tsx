@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { useSociety } from "@/lib/store";
 import { flatProblem } from "@/lib/food";
-import { Button, Card, Field, PageHeader } from "@/components/ui";
+import { Button, Card, Field, PageHeader, SectionTitle } from "@/components/ui";
 import { useCommitteeSession } from "@/components/ledger-admin";
 
 interface Coupon {
@@ -73,7 +73,12 @@ export default function FoodCouponPage() {
   }
 
   if (coupon) {
-    return <CouponIssued coupon={coupon} already={already} society={data.society.name} />;
+    return (
+      <>
+        <CouponIssued coupon={coupon} already={already} society={data.society.name} />
+        <Registered />
+      </>
+    );
   }
 
   return (
@@ -174,6 +179,8 @@ export default function FoodCouponPage() {
         rather than issuing a second one. For a larger family, please ask a committee member.
       </p>
 
+      <Registered />
+
       {committee.authenticated ? (
         <p className="mt-4 text-[0.8125rem]">
           <a href="/food-counter" className="text-brand underline decoration-brand/30 underline-offset-2">
@@ -244,6 +251,95 @@ function CouponIssued({
       <p className="mt-4 text-xs leading-relaxed text-ink-faint">
         Your family can come in more than one batch — the counter records how many eat each time.
       </p>
+    </div>
+  );
+}
+
+interface Family {
+  name: string;
+  flat: string;
+  members: number;
+}
+
+/**
+ * Everyone who has registered so far.
+ *
+ * Open, like the donations list: a resident can check their own flat is on it
+ * without having to ask a committee member, and seeing the list fill up is what
+ * reminds the next family to register. Shows the name, the flat and how many
+ * they put down — never the mobile number, and never the coupon code, which is
+ * the part that gets scanned.
+ */
+function Registered() {
+  const [families, setFamilies] = useState<Family[] | null>(null);
+  const [people, setPeople] = useState(0);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetch("/api/coupons/registered")
+        .then((r) => r.json())
+        .then((d) => {
+          setFamilies(d.families ?? []);
+          setPeople(Number(d.people) || 0);
+        })
+        .catch(() => setFamilies([]));
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!families) return null;
+
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? families.filter(
+        (f) => f.flat.toLowerCase().includes(q) || f.name.toLowerCase().includes(q),
+      )
+    : families;
+
+  return (
+    <div className="mt-8">
+      <SectionTitle>
+        {families.length} {families.length === 1 ? "family" : "families"} registered · {people}{" "}
+        {people === 1 ? "person" : "people"}
+      </SectionTitle>
+
+      {families.length ? (
+        <Card className="overflow-hidden">
+          <div className="border-b border-line p-3">
+            <input
+              className="field"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a flat or name"
+              aria-label="Search registrations"
+            />
+          </div>
+          {shown.length ? (
+            <ul className="max-h-80 divide-y divide-line overflow-y-auto">
+              {shown.map((f, i) => (
+                <li key={`${f.flat}-${f.name}-${i}`} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="tnum w-16 shrink-0 text-[0.8125rem] font-medium text-ink">
+                    {f.flat || "—"}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[0.8125rem] text-ink">
+                    {f.name}
+                  </span>
+                  <span className="tnum shrink-0 text-xs text-ink-faint">
+                    {f.members} {f.members === 1 ? "person" : "people"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-4 text-sm text-ink-soft">Nothing matches that.</p>
+          )}
+        </Card>
+      ) : (
+        <Card className="px-4 py-6 text-center">
+          <p className="text-sm text-ink-soft">Nobody has registered yet — be the first.</p>
+        </Card>
+      )}
     </div>
   );
 }
