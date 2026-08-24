@@ -36,5 +36,28 @@ export async function GET(request: Request) {
     lengths: Object.fromEntries(
       interesting.map((k) => [k, (process.env[k] ?? "").length]),
     ),
+    /**
+     * The key TYPE only — the prefix Supabase puts on every key to say what it
+     * is. Not a secret, and it catches the easy mistake of pasting the
+     * publishable key into the secret slot, which otherwise shows up as a
+     * baffling "permission denied" much later.
+     */
+    keyTypes: Object.fromEntries(
+      interesting.map((k) => {
+        const v = process.env[k] ?? "";
+        const type = v.startsWith("sb_secret_")
+          ? "secret ✓"
+          : v.startsWith("sb_publishable_")
+            ? "PUBLISHABLE — wrong for the service role"
+            : v.startsWith("eyJ")
+              ? "legacy JWT (check it is service_role, not anon)"
+              : v.startsWith("http")
+                ? "url"
+                : v
+                  ? "unrecognised"
+                  : "empty";
+        return [k, type];
+      }),
+    ),
   });
 }
