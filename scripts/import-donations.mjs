@@ -3,14 +3,15 @@
  * Turns a collection list or bank statement export into import SQL.
  *
  *   npm run import-donations -- ~/Downloads/statement.csv "Ganesh Chaturthi 2026"
+ *   npm run import-donations -- ~/Downloads/statement.csv --write
  *
  * Reads a CSV however the bank happened to name its columns, checks the
- * arithmetic, reports anything that looks wrong, and writes a migration to
- * paste into the Supabase SQL Editor.
+ * arithmetic, and reports anything that looks wrong.
  *
- * It never writes to the database itself. Recompiling a list is a job you can
- * redo; writing wrong numbers into a live ledger is not — so the SQL is left
- * for a person to read first.
+ * By default it writes SQL for a person to read and run — recompiling a list
+ * is a job you can redo, writing wrong numbers into a live ledger is not.
+ * With --write it inserts directly, after showing the same report and asking.
+ * Either way nothing reaches the database until a human has said so.
  *
  * Standalone on purpose: nothing in the app imports this, it lives outside
  * src/ so it is not part of the build, and it has no dependencies beyond Node.
@@ -161,15 +162,23 @@ const NOT_A_DONATION =
 
 /* ----------------------------------------------------------------- main */
 
-const [, , fileArg, activityArg] = process.argv;
+const args = process.argv.slice(2);
+const writeDirect = args.includes("--write");
+const assumeYes = args.includes("--yes") || args.includes("-y");
+const positional = args.filter((a) => !a.startsWith("-"));
+const [fileArg, activityArg] = positional;
 
 if (!fileArg) {
   console.error(`
 Usage:
-  npm run import-donations -- <file.csv> ["Activity name"]
+  npm run import-donations -- <file.csv> ["Activity name"] [--write] [--yes]
 
-Example:
-  npm run import-donations -- ~/Downloads/statement.csv "Ganesh Chaturthi 2026"
+  --write   insert straight into the database instead of writing SQL
+  --yes     with --write, skip the confirmation (for scheduled runs)
+
+Examples:
+  npm run import-donations -- ~/Downloads/statement.csv
+  npm run import-donations -- ~/Downloads/statement.csv "Ganesh Chaturthi 2026" --write
 `);
   process.exit(1);
 }
@@ -296,6 +305,158 @@ if (problems.length) {
 if (!entries.length) {
   console.error("\nNothing to import.");
   process.exit(1);
+}
+
+/* --------------------------------------------------- writing it directly */
+
+/**
+ * Inserts straight into Supabase, after asking.
+ *
+ * Uses the same duplicate test as the generated SQL — reference where the bank
+ * gives one, otherwise name, amount and date — so the two routes cannot
+ * disagree about what is already recorded.
+ *
+ * Needs SUPABASE_SERVICE_ROLE_KEY, which is read from .env.local and stays on
+ * this machine.
+ */
+async function writeDirectly() {
+  // .env.local isn't loaded automatically outside Next, so read it here.
+  const envPath = join(process.cwd(), ".env.local");
+  const env = {};
+  if (existsSync(envPath)) {
+    for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+
+  const url = env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    console.error(`
+  Can't write directly: the service key isn't on this machine.
+
+  Add it to .env.local in this folder (it is gitignored, so it stays here):
+
+    NEXT_PUBLIC_SUPABASE_URL=${url || "https://YOUR-PROJECT.supabase.co"}
+    SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
+
+  Get the secret key from Supabase → Project Settings → API Keys → Secret keys.
+  Or drop --write and paste the SQL instead.
+`);
+    process.exit(1);
+  }
+
+  const rest = async (path, init = {}) => {
+    const res = await fetch(`${url}/rest/v1/${path}`, {
+      ...init,
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`${res.status} ${text.slice(0, 300)}`);
+    return text ? JSON.parse(text) : null;
+  };
+
+  // The activity these belong to, created if this is the first import for it.
+  let [act] = await rest(
+    `activities?select=id&title=eq.${encodeURIComponent(activity)}&limit=1`,
+  );
+  if (!act) {
+    [act] = await rest("activities", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({
+        title: activity,
+        category: "festival",
+        starts_at: new Date().toISOString(),
+        status: "planned",
+        organiser: "Festival Committee",
+      }),
+    });
+  }
+
+  // Someone to attribute the entries to.
+  let [member] = await rest("members?select=id&role=eq.admin&order=joined_at&limit=1");
+  if (!member) {
+    [member] = await rest("members", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ name: "Festival Committee", role: "admin", status: "approved" }),
+    });
+  }
+
+  // What is already recorded against this activity, so only new rows go in.
+  const existing = await rest(
+    `donations?select=donor_name,amount,received_at,reference&activity_id=eq.${act.id}&limit=5000`,
+  );
+  const seenRefs = new Set(existing.filter((d) => d.reference).map((d) => d.reference));
+  const seenRows = new Set(
+    existing.map((d) => `${d.donor_name}|${Number(d.amount).toFixed(2)}|${d.received_at}`),
+  );
+
+  const fresh = entries.filter((e) => {
+    if (e.reference) return !seenRefs.has(e.reference);
+    const name = e.name ?? "Anonymous (QR payment)";
+    return !seenRows.has(`${name}|${e.amount.toFixed(2)}|${e.date}`);
+  });
+
+  console.log(`\n  already recorded ${entries.length - fresh.length}`);
+  console.log(`  new to add       ${fresh.length}`);
+
+  if (!fresh.length) {
+    console.log("\n  Nothing to do.\n");
+    return;
+  }
+
+  if (!assumeYes) {
+    const answer = await new Promise((res) => {
+      process.stdout.write(`\n  Insert ${fresh.length} new entries? [y/N] `);
+      process.stdin.setEncoding("utf8");
+      process.stdin.once("data", (d) => res(String(d).trim().toLowerCase()));
+    });
+    if (answer !== "y" && answer !== "yes") {
+      console.log("  Nothing written.\n");
+      process.exit(0);
+    }
+  }
+
+  const now = new Date().toISOString();
+  await rest("donations", {
+    method: "POST",
+    body: JSON.stringify(
+      fresh.map((e) => ({
+        donor_name: e.name ?? "Anonymous (QR payment)",
+        wing: e.wing,
+        flat: e.flat,
+        amount: e.amount,
+        method: "upi",
+        reference: e.reference,
+        received_at: e.date,
+        note: e.source,
+        activity_id: act.id,
+        recorded_by: member.id,
+        status: "verified",
+        verified_by: member.id,
+        verified_at: now,
+      })),
+    ),
+  });
+
+  const after = await rest(`donations?select=amount&activity_id=eq.${act.id}&limit=5000`);
+  const newTotal = after.reduce((t, d) => t + Number(d.amount), 0);
+  console.log(`\n  added ${fresh.length}`);
+  console.log(`  ${activity} now stands at ${after.length} entries, ${inr(newTotal)}\n`);
+}
+
+if (writeDirect) {
+  await writeDirectly();
+  process.exit(0);
 }
 
 /* ---------------------------------------------------------------- output */
