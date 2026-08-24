@@ -7,6 +7,9 @@ gallery of every celebration.
 Set up for **Wellington — Pride World City** (with sample data) — replace it with your own records
 from **Manage → Starting with your own society**.
 
+**Running it day to day — daily imports, cash entries, passwords, current
+state: [OPERATIONS.md](OPERATIONS.md).**
+
 ---
 
 ## Running it locally
