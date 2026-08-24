@@ -65,16 +65,35 @@ function ExportCsv({
 }
 
 export default function FundsPage() {
+  return <FundsView />;
+}
+
+/**
+ * The funds screen. `only` pins it to a single section, which is how the
+ * separate Donations and Ledger pages reuse these tables without a second copy.
+ */
+export function FundsView({
+  only,
+  title,
+  subtitle,
+}: {
+  only?: Tab;
+  title?: string;
+  subtitle?: string;
+} = {}) {
   const { data, isAdmin, canCollect } = useSociety();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(only ?? "overview");
 
   const summary = useMemo(() => fundSummary(data.donations, data.expenses), [data]);
 
   return (
     <div>
       <PageHeader
-        title="Funds"
-        subtitle="Who contributed, where every rupee went, and what is left. Open to all residents — no sign-in needed."
+        title={title ?? "Funds"}
+        subtitle={
+          subtitle ??
+          "Who contributed, where every rupee went, and what is left. Open to all residents — no sign-in needed."
+        }
         actions={
           <ShareButton
             size="sm"
@@ -103,6 +122,7 @@ export default function FundsPage() {
       <div
         role="tablist"
         aria-label="Fund views"
+        hidden={!!only}
         className="mb-5 flex gap-1 overflow-x-auto rounded-[10px] bg-surface-sunken p-1"
       >
         {(

@@ -14,6 +14,11 @@ interface NavItem {
   short: string;
   icon: ReactNode;
   adminOrVolunteerOnly?: boolean;
+  /**
+   * Rendered as a plain anchor rather than a client route. The generator is a
+   * static file behind middleware, so it needs a full page load.
+   */
+  external?: boolean;
 }
 
 const icon = (path: ReactNode) => (
@@ -32,6 +37,11 @@ const icon = (path: ReactNode) => (
   </svg>
 );
 
+/**
+ * Four destinations, and no more: the home page and the three things the
+ * committee asked for. Anything else the app can do is reachable from within
+ * those, and a volunteer at a doorstep should not have to read a menu.
+ */
 const NAV: NavItem[] = [
   {
     href: "/",
@@ -40,9 +50,9 @@ const NAV: NavItem[] = [
     icon: icon(<path d="M3 10.5 12 3l9 7.5M5.5 9.5V21h13V9.5" />),
   },
   {
-    href: "/funds",
-    label: "Funds",
-    short: "Funds",
+    href: "/donations",
+    label: "Donations",
+    short: "Donations",
     icon: icon(
       <>
         <path d="M3 6h18v13H3z" />
@@ -51,51 +61,32 @@ const NAV: NavItem[] = [
     ),
   },
   {
-    href: "/collect",
-    label: "Collect",
-    short: "Collect",
+    href: "/ledger",
+    label: "Ledger",
+    short: "Ledger",
     icon: icon(
       <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 8v8M8 12h8" />
-      </>,
-    ),
-    adminOrVolunteerOnly: true,
-  },
-  {
-    href: "/activities",
-    label: "Activities",
-    short: "Events",
-    icon: icon(
-      <>
-        <path d="M4 5.5h16V21H4z" />
-        <path d="M8 3v4M16 3v4M4 10h16" />
+        <path d="M5 3h14v18H5z" />
+        <path d="M9 7.5h6M9 12h6M9 16.5h3" />
       </>,
     ),
   },
   {
-    href: "/gallery",
-    label: "Photo gallery",
-    short: "Photos",
-    icon: icon(
-      <>
-        <path d="M3 5.5h18v13H3z" />
-        <path d="m3 15 5-4 4 3 3-2.5 6 4.5" />
-        <circle cx="8.5" cy="9" r="1.4" />
-      </>,
-    ),
-  },
-  {
-    href: "/receipt",
-    label: "Find a receipt",
+    href: "/receipt-generator.html",
+    label: "Write a receipt",
     short: "Receipt",
+    external: true,
+    /**
+     * Not gated on being signed into the app. The generator has its own
+     * password, and a volunteer given only that password never signs in here —
+     * gating the link would leave them no way to reach it.
+     */
     icon: icon(
       <>
-        <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
-        <path d="M9.5 8h5M9.5 12h5" />
+        <path d="M4 5.5h11l5 5V21H4z" />
+        <path d="M15 5.5V11h5M8 15h8" />
       </>,
     ),
-    adminOrVolunteerOnly: true,
   },
 ];
 
@@ -183,22 +174,32 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="mx-auto flex w-full max-w-6xl flex-1 gap-8 px-4 py-5 sm:py-7">
         <nav aria-label="Sections" className="hidden w-52 shrink-0 md:block">
           <ul className="sticky top-20 space-y-0.5">
-            {items.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={isActive(item.href) ? "page" : undefined}
-                  className={`flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive(item.href)
-                      ? "bg-brand-soft text-brand-ink"
-                      : "text-ink-soft hover:bg-surface-sunken hover:text-ink"
-                  }`}
-                >
-                  {item.icon}
-                  {item.label}
-                </Link>
-              </li>
-            ))}
+            {items.map((item) => {
+              const cls = `flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm font-medium transition-colors ${
+                isActive(item.href)
+                  ? "bg-brand-soft text-brand-ink"
+                  : "text-ink-soft hover:bg-surface-sunken hover:text-ink"
+              }`;
+              return (
+                <li key={item.href}>
+                  {item.external ? (
+                    <a href={item.href} className={cls}>
+                      {item.icon}
+                      {item.label}
+                    </a>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      aria-current={isActive(item.href) ? "page" : undefined}
+                      className={cls}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
             {isAdmin ? (
               <li className="pt-2">
                 <Link
@@ -232,20 +233,30 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
         <ul className="flex">
-          {items.map((item) => (
-            <li key={item.href} className="flex-1">
-              <Link
-                href={item.href}
-                aria-current={isActive(item.href) ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 py-2.5 text-[0.6875rem] font-medium transition-colors ${
-                  isActive(item.href) ? "text-brand" : "text-ink-faint"
-                }`}
-              >
-                {item.icon}
-                {item.short}
-              </Link>
-            </li>
-          ))}
+          {items.map((item) => {
+            const cls = `flex flex-col items-center gap-0.5 py-2.5 text-[0.6875rem] font-medium transition-colors ${
+              isActive(item.href) ? "text-brand" : "text-ink-faint"
+            }`;
+            return (
+              <li key={item.href} className="flex-1">
+                {item.external ? (
+                  <a href={item.href} className={cls}>
+                    {item.icon}
+                    {item.short}
+                  </a>
+                ) : (
+                  <Link
+                    href={item.href}
+                    aria-current={isActive(item.href) ? "page" : undefined}
+                    className={cls}
+                  >
+                    {item.icon}
+                    {item.short}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </nav>
     </div>
