@@ -25,7 +25,13 @@ import {
 } from "./ui";
 import { CategoryBars, MonthlyFlowChart } from "./charts";
 import { ShareButton } from "./share";
-import { DonationForm, DonationRow, ExpenseForm, ExpenseRow } from "./entries";
+import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
+import {
+  AddExpenseButton,
+  CommitteeSignInHint,
+  DeleteExpenseButton,
+  useCommitteeSession,
+} from "./ledger-admin";
 import type { Donation, Expense } from "@/lib/types";
 
 type Tab = "overview" | "donations" | "expenses";
@@ -304,7 +310,7 @@ function Ledger({ limit }: { limit?: number }) {
 
 /* --------------------------------------------------------------- donations */
 
-function DonationsTab({ canCollect, isAdmin }: { canCollect: boolean; isAdmin: boolean }) {
+function DonationsTab({ canCollect }: { canCollect: boolean; isAdmin?: boolean }) {
   const { data } = useSociety();
   const [query, setQuery] = useState("");
   const [activityFilter, setActivityFilter] = useState("all");
@@ -403,16 +409,74 @@ function DonationsTab({ canCollect, isAdmin }: { canCollect: boolean; isAdmin: b
       </p>
 
       {filtered.length ? (
-        <Card>
-          <ul className="divide-y divide-line">
-            {filtered.map((d) => (
-              <DonationRow
-                key={d.id}
-                donation={d}
-                onEdit={isAdmin || d.status === "pending" ? () => setEditing(d) : undefined}
-              />
-            ))}
-          </ul>
+        <Card className="overflow-x-auto">
+          {/* A table rather than cards: with a hundred entries the point is
+              scanning down one column, which cards make impossible. */}
+          <table className="w-full min-w-[46rem] text-left text-[0.8125rem]">
+            <thead>
+              <tr className="border-b border-line text-[0.6875rem] uppercase tracking-[0.05em] text-ink-faint">
+                <th className="px-4 py-2.5 font-semibold">Date</th>
+                <th className="px-4 py-2.5 font-semibold">Name</th>
+                <th className="px-4 py-2.5 font-semibold">Flat no.</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
+                <th className="px-4 py-2.5 font-semibold">Towards</th>
+                <th className="px-4 py-2.5 font-semibold">Status</th>
+                <th className="px-4 py-2.5 font-semibold">Receipt</th>
+                {canCollect ? <th className="px-4 py-2.5 font-semibold" /> : null}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {filtered.map((d) => (
+                <tr key={d.id} className="align-top">
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
+                    {shortDate(d.receivedAt)}
+                  </td>
+                  <td className="px-4 py-2.5 text-ink">
+                    {d.donorName}
+                    {d.isTenant ? (
+                      <span className="ml-1.5 text-[0.6875rem] text-ink-faint">tenant</span>
+                    ) : null}
+                  </td>
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
+                    {d.wing || d.flat ? flatLabel(d.wing, d.flat) : "—"}
+                  </td>
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-right font-medium text-ink">
+                    {money(d.amount)}
+                  </td>
+                  <td className="px-4 py-2.5 text-ink-soft">
+                    {d.activityId
+                      ? (activityById.get(d.activityId)?.title ?? "—")
+                      : "General fund"}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    {d.status === "verified" ? (
+                      <span className="text-credit">Verified</span>
+                    ) : (
+                      <span className="text-warn">Awaiting handover</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    {d.receiptSentAt ? (
+                      <span className="text-credit">Sent</span>
+                    ) : (
+                      <span className="text-ink-faint">Not yet</span>
+                    )}
+                  </td>
+                  {canCollect ? (
+                    <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(d)}
+                        className="text-[0.6875rem] font-medium text-brand underline decoration-brand/30 underline-offset-2"
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </Card>
       ) : (
         <EmptyState
@@ -429,9 +493,42 @@ function DonationsTab({ canCollect, isAdmin }: { canCollect: boolean; isAdmin: b
   );
 }
 
+/**
+ * The shared expense row, with a remove control for the committee.
+ *
+ * Wrapped rather than changed in place: the row is used elsewhere without any
+ * notion of a committee session, and it shouldn't grow one.
+ */
+function ExpenseRowWithRemove({
+  expense,
+  canEdit,
+  onEdit,
+}: {
+  expense: Expense;
+  canEdit: boolean;
+  onEdit?: () => void;
+}) {
+  return (
+    <li>
+      <ul>
+        <ExpenseRow expense={expense} onEdit={onEdit} />
+      </ul>
+      {canEdit ? (
+        <div className="px-4 pb-2.5 -mt-1">
+          <DeleteExpenseButton id={expense.id} onDone={() => window.location.reload()} />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 /* ---------------------------------------------------------------- expenses */
 
 function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
+  // Editing the ledger is governed by the committee session — the same
+  // password as the receipt generator — rather than a separate app account.
+  const committee = useCommitteeSession();
+  const canEdit = committee.authenticated || isAdmin;
   const { data } = useSociety();
   const [query, setQuery] = useState("");
   const [activityFilter, setActivityFilter] = useState("all");
@@ -503,11 +600,13 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
           ]}
           rows={csvRows}
         />
-        {isAdmin ? (
-          <Button onClick={() => setAdding(true)} className="ml-auto">
-            Record expense
-          </Button>
-        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          {canEdit ? (
+            <AddExpenseButton onSaved={() => window.location.reload()} />
+          ) : committee.checked ? (
+            <CommitteeSignInHint />
+          ) : null}
+        </div>
       </div>
 
       <p className="text-[0.8125rem] text-ink-soft">
@@ -520,7 +619,8 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
         <Card>
           <ul className="divide-y divide-line">
             {filtered.map((e) => (
-              <ExpenseRow
+              <ExpenseRowWithRemove
+                canEdit={canEdit}
                 key={e.id}
                 expense={e}
                 onEdit={isAdmin ? () => setEditing(e) : undefined}
