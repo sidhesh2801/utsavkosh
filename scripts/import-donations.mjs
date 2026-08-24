@@ -19,7 +19,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
 
 /* ------------------------------------------------------------------ CSV */
 
@@ -165,7 +165,9 @@ const NOT_A_DONATION =
 const args = process.argv.slice(2);
 const writeDirect = args.includes("--write");
 const assumeYes = args.includes("--yes") || args.includes("-y");
-const positional = args.filter((a) => !a.startsWith("-"));
+const csvFlagAt = args.indexOf("--csv");
+const csvPathArg = csvFlagAt >= 0 ? args[csvFlagAt + 1] : null;
+const positional = args.filter((a, i) => !a.startsWith("-") && i !== csvFlagAt + 1);
 const [fileArg, activityArg] = positional;
 
 if (!fileArg) {
@@ -173,8 +175,10 @@ if (!fileArg) {
 Usage:
   npm run import-donations -- <file.csv> ["Activity name"] [--write] [--yes]
 
-  --write   insert straight into the database instead of writing SQL
-  --yes     with --write, skip the confirmation (for scheduled runs)
+  --write        insert straight into the database instead of writing SQL
+  --yes          with --write, skip the confirmation (for scheduled runs)
+  --csv <path>   where to write the refreshed master list
+                 (default: donation_list.csv beside the statement)
 
 Examples:
   npm run import-donations -- ~/Downloads/statement.csv
@@ -410,7 +414,10 @@ async function writeDirectly() {
   console.log(`  new to add       ${fresh.length}`);
 
   if (!fresh.length) {
-    console.log("\n  Nothing to do.\n");
+    console.log("\n  Nothing new in this statement.");
+    // Still refresh the file: cash entered in the app changes the list without
+    // any import, so the master CSV would otherwise fall behind.
+    await refreshMasterList(rest, act.id, 0);
     return;
   }
 
@@ -448,10 +455,66 @@ async function writeDirectly() {
     ),
   });
 
-  const after = await rest(`donations?select=amount&activity_id=eq.${act.id}&limit=5000`);
-  const newTotal = after.reduce((t, d) => t + Number(d.amount), 0);
-  console.log(`\n  added ${fresh.length}`);
-  console.log(`  ${activity} now stands at ${after.length} entries, ${inr(newTotal)}\n`);
+  await refreshMasterList(rest, act.id, fresh.length);
+}
+
+/**
+ * Rewrites the master CSV from the database.
+ *
+ * Regenerated rather than appended to, because the database is the record: it
+ * already holds the cash entries typed into the app, which no bank statement
+ * will ever contain. Appending to the old file would quietly drift from what
+ * residents see on the site, and the drift would only show up at an audit.
+ */
+async function refreshMasterList(rest, activityId, addedCount) {
+  const rows = await rest(
+    `donations?select=receipt_no,donor_name,wing,flat,amount,method,reference,received_at,status,note` +
+      `&activity_id=eq.${activityId}&order=received_at.asc&limit=5000`,
+  );
+
+  const total = rows.reduce((t, d) => t + Number(d.amount), 0);
+  console.log(`\n  added ${addedCount}`);
+  console.log(`  ${activity} now stands at ${rows.length} entries, ${inr(total)}`);
+
+  // A leading =, +, - or @ makes a spreadsheet treat the cell as a formula, so
+  // a donor named "-Anil" would execute rather than display.
+  const cell = (v) => {
+    if (v === null || v === undefined) return "";
+    let t = String(v);
+    if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+
+  const csv = [
+    ["S.No", "Receipt No", "Name", "Flat No", "Amount (Rs.)", "Date", "Mode", "Source", "Reference", "Status"]
+      .map(cell)
+      .join(","),
+    ...rows.map((d, i) =>
+      [
+        i + 1,
+        d.receipt_no,
+        d.donor_name,
+        [d.wing, d.flat].filter(Boolean).join("-"),
+        Number(d.amount).toFixed(2),
+        d.received_at,
+        d.method,
+        d.note ?? "",
+        d.reference ?? "",
+        d.status,
+      ]
+        .map(cell)
+        .join(","),
+    ),
+    ["", "", "TOTAL", "", total.toFixed(2), "", "", "", "", ""].map(cell).join(","),
+  ].join("\r\n");
+
+  const target = csvPathArg
+    ? resolve(csvPathArg.replace(/^~/, process.env.HOME ?? "~"))
+    : join(dirname(path), "donation_list.csv");
+
+  // A BOM, so Excel reads the rupee amounts and Indian names correctly.
+  writeFileSync(target, `\ufeff${csv}`, "utf8");
+  console.log(`  master list      ${target}\n`);
 }
 
 if (writeDirect) {
