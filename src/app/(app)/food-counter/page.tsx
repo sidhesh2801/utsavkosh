@@ -6,6 +6,7 @@ import { useSociety } from "@/lib/store";
 import { Button, Card, EmptyState, Field, PageHeader, SectionTitle, useToast } from "@/components/ui";
 import { useCommitteeSession } from "@/components/ledger-admin";
 import { ScanButton } from "@/components/coupon-scanner";
+import { CouponList } from "@/components/coupon-list";
 
 interface Summary {
   coupons: number;
@@ -36,6 +37,8 @@ export default function FoodCounterPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Serving[]>([]);
   const [perHour, setPerHour] = useState<{ hour: string; people: number }[]>([]);
+  // Bumped after each serving so the family list reloads with the counters.
+  const [version, setVersion] = useState(0);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/coupons/stats");
@@ -44,6 +47,7 @@ export default function FoodCounterPage() {
     setSummary(d.summary);
     setRecent(d.recent ?? []);
     setPerHour(d.perHour ?? []);
+    setVersion((v) => v + 1);
   }, []);
 
   useEffect(() => {
@@ -132,6 +136,8 @@ export default function FoodCounterPage() {
           </ul>
         </Card>
       ) : null}
+
+      <CouponList refreshKey={version} />
 
       <Card>
         <div className="px-4 pt-4">
