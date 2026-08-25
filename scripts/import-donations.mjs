@@ -164,6 +164,15 @@ const NOT_A_DONATION =
 
 const args = process.argv.slice(2);
 const writeDirect = args.includes("--write");
+/**
+ * Rewrite the master CSV from the database and import nothing.
+ *
+ * Needed whenever the register changes without a statement: a cash entry typed
+ * into the app, or a row the committee removed. Passing an empty CSV does not
+ * work — and should not, since a statement with no rows is far more likely to
+ * be a broken export than an intentional no-op.
+ */
+const refreshOnly = args.includes("--refresh");
 const assumeYes = args.includes("--yes") || args.includes("-y");
 const csvFlagAt = args.indexOf("--csv");
 const csvPathArg = csvFlagAt >= 0 ? args[csvFlagAt + 1] : null;
@@ -175,38 +184,46 @@ const positional = args.filter(
 );
 const [fileArg, activityArg] = positional;
 
-if (!fileArg) {
+if (!fileArg && !refreshOnly) {
   console.error(`
 Usage:
   npm run import-donations -- <file.csv> ["Activity name"] [--write] [--yes]
+  npm run import-donations -- --refresh ["Activity name"] --csv <path>
 
   --write        insert straight into the database instead of writing SQL
   --yes          with --write, skip the confirmation (for scheduled runs)
+  --refresh      import nothing; just rewrite the master CSV from the database
   --csv <path>   where to write the refreshed master list
                  (default: donation_list.csv beside the statement)
 
 Examples:
   npm run import-donations -- ~/Downloads/statement.csv
   npm run import-donations -- ~/Downloads/statement.csv "Ganesh Chaturthi 2026" --write
+  npm run import-donations -- --refresh --csv ~/Downloads/donation_list.csv
 `);
   process.exit(1);
 }
 
-const path = resolve(fileArg.replace(/^~/, process.env.HOME ?? "~"));
-if (!existsSync(path)) {
+// With --refresh there is no statement, so the master list needs somewhere to
+// go: --csv, or Downloads, which is where every other output of this lands.
+const path = fileArg
+  ? resolve(fileArg.replace(/^~/, process.env.HOME ?? "~"))
+  : join(process.env.HOME ?? ".", "Downloads", "statement.csv");
+
+if (!refreshOnly && !existsSync(path)) {
   console.error(`Can't find ${path}`);
   process.exit(1);
 }
 
 const activity = activityArg || "Janmashtami & Dahi Handi 2026";
-const rows = parseCsv(readFileSync(path, "utf8"));
-if (rows.length < 2) {
+const rows = refreshOnly ? [] : parseCsv(readFileSync(path, "utf8"));
+if (!refreshOnly && rows.length < 2) {
   console.error("That file has no rows.");
   process.exit(1);
 }
 
-const columns = detectColumns(rows[0]);
-if (columns.amount === undefined) {
+const columns = refreshOnly ? {} : detectColumns(rows[0]);
+if (!refreshOnly && columns.amount === undefined) {
   console.error(
     `Couldn't find an amount column. Headers seen:\n  ${rows[0].join(" | ")}\n` +
       `Rename the amount column to something containing "amount" or "credit".`,
@@ -214,10 +231,12 @@ if (columns.amount === undefined) {
   process.exit(1);
 }
 
-console.log(`\nReading ${path}`);
-console.log("Columns detected:");
-for (const [key, index] of Object.entries(columns)) {
-  console.log(`  ${key.padEnd(10)} -> "${rows[0][index].trim()}"`);
+if (!refreshOnly) {
+  console.log(`\nReading ${path}`);
+  console.log("Columns detected:");
+  for (const [key, index] of Object.entries(columns)) {
+    console.log(`  ${key.padEnd(10)} -> "${rows[0][index].trim()}"`);
+  }
 }
 
 const entries = [];
@@ -281,6 +300,7 @@ const duplicates = [...byName.values()].filter((g) => g.length > 1);
 
 const inr = (n) => `Rs ${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
+if (!refreshOnly) {
 console.log(`\n  entries          ${entries.length}`);
 console.log(`  total            ${inr(total)}`);
 if (statedTotal !== null) {
@@ -311,8 +331,15 @@ if (problems.length) {
   for (const p of problems) console.log(`     line ${p.line}: ${p.reason}`);
 }
 
-if (!entries.length) {
+}
+
+if (!entries.length && !refreshOnly) {
   console.error("\nNothing to import.");
+  process.exit(1);
+}
+
+if (refreshOnly && !writeDirect) {
+  console.error("\n--refresh reads the database, so it needs --write too.");
   process.exit(1);
 }
 
@@ -388,6 +415,13 @@ async function writeDirectly() {
         organiser: "Festival Committee",
       }),
     });
+  }
+
+  // Nothing to insert, so no member to attribute it to and no duplicate test
+  // to run — just rewrite the file from what the database now holds.
+  if (refreshOnly) {
+    await refreshMasterList(rest, act.id, 0);
+    return;
   }
 
   // Someone to attribute the entries to.
