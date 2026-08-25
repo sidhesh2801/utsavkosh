@@ -821,6 +821,11 @@ export function ExpenseRow({
         {recorder ? (
           <span className="text-[0.6875rem] text-ink-faint">Entered by {recorder.name}</span>
         ) : null}
+        {expense.editedAt ? (
+          <span className="text-[0.6875rem] text-ink-faint">
+            · edited {shortDate(expense.editedAt)}
+          </span>
+        ) : null}
         {onEdit ? (
           <button
             type="button"

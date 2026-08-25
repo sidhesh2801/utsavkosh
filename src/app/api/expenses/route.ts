@@ -130,6 +130,80 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * Corrects an existing entry.
+ *
+ * Only the fields present in the body change, so the sheet can send an
+ * attachment without restating the amount. `billPath: null` means the
+ * committee removed the attachment; omitting it leaves it alone — the two must
+ * not collapse into one, or every text edit would silently drop the bill.
+ */
+export async function PATCH(request: Request) {
+  if (!(await authorised(request))) {
+    return NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+  }
+  const blocked = guard(request);
+  if (blocked) return blocked;
+
+  let body: Body;
+  try {
+    body = (await request.json()) as Body;
+  } catch {
+    return NextResponse.json({ error: "Could not read the request." }, { status: 400 });
+  }
+
+  const id = (body.id ?? "").trim();
+  if (!id) return NextResponse.json({ error: "Which entry?" }, { status: 400 });
+
+  const supabase = admin();
+  const { data: existing } = await supabase
+    .from("expenses")
+    .select("bill_path")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!existing) {
+    return NextResponse.json({ error: "That entry no longer exists." }, { status: 404 });
+  }
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (body.title !== undefined) {
+    const title = body.title.trim();
+    if (!title) {
+      return NextResponse.json({ error: "Describe what the money was spent on." }, { status: 400 });
+    }
+    patch.title = title;
+  }
+  if (body.amount !== undefined) {
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ error: "Amount must be more than zero." }, { status: 400 });
+    }
+    patch.amount = amount;
+  }
+  if (body.category !== undefined) patch.category = body.category || "miscellaneous";
+  if (body.method !== undefined) patch.method = body.method || "upi";
+  if (body.paidAt !== undefined) patch.paid_at = body.paidAt;
+  if (body.vendor !== undefined) patch.vendor = body.vendor.trim() || null;
+  if (body.billNo !== undefined) patch.bill_no = body.billNo.trim() || null;
+  if (body.paidBy !== undefined) patch.paid_by = body.paidBy.trim() || null;
+  if (body.note !== undefined) patch.note = body.note.trim() || null;
+  if (body.activityId !== undefined) patch.activity_id = body.activityId ?? null;
+  if (body.billPath !== undefined) patch.bill_path = body.billPath || null;
+
+  const { error } = await supabase.from("expenses").update(patch).eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // The old file goes only once the row has stopped pointing at it, and only
+  // if it is genuinely being replaced or cleared.
+  const replacing = body.billPath !== undefined && body.billPath !== existing.bill_path;
+  if (replacing && existing.bill_path) {
+    await supabase.storage.from("bills").remove([String(existing.bill_path)]);
+  }
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(request: Request) {
   if (!(await authorised(request))) {
     return NextResponse.json({ error: "Please sign in again." }, { status: 401 });

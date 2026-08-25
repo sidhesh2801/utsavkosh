@@ -57,4 +57,4 @@ export const STAFF_DONATION_COLUMNS: string = "*";
  * service key — a bill photo can be a UPI screenshot of the payer's account.
  */
 export const EXPENSE_COLUMNS: string =
-  "id, title, category, amount, vendor, activity_id, paid_at, method, bill_no, note, paid_by, has_bill, recorded_by, created_at";
+  "id, title, category, amount, vendor, activity_id, paid_at, method, bill_no, note, paid_by, has_bill, recorded_by, created_at, updated_at";

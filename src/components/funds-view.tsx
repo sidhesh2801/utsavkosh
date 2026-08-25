@@ -31,6 +31,7 @@ import {
   AddExpenseButton,
   CommitteeSignInHint,
   DeleteExpenseButton,
+  ExpenseSheet,
   useCommitteeSession,
 } from "./ledger-admin";
 import type { Donation, Expense } from "@/lib/types";
@@ -629,7 +630,7 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
                 canEdit={canEdit}
                 key={e.id}
                 expense={e}
-                onEdit={isAdmin ? () => setEditing(e) : undefined}
+                onEdit={canEdit ? () => setEditing(e) : undefined}
               />
             ))}
           </ul>
@@ -642,7 +643,19 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       {adding ? <ExpenseForm open onClose={() => setAdding(false)} /> : null}
-      {editing ? <ExpenseForm open existing={editing} onClose={() => setEditing(null)} /> : null}
+      {editing ? (
+        committee.authenticated ? (
+          // The committee login writes through the server routes; the older
+          // Supabase Auth form writes with a user token and can't.
+          <ExpenseSheet
+            existing={editing}
+            onClose={() => setEditing(null)}
+            onSaved={() => window.location.reload()}
+          />
+        ) : (
+          <ExpenseForm open existing={editing} onClose={() => setEditing(null)} />
+        )
+      ) : null}
     </div>
   );
 }

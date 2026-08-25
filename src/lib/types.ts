@@ -158,6 +158,11 @@ export interface Expense {
    * showing the payer's own account.
    */
   hasBill?: boolean;
+  /**
+   * When the entry was last corrected, or absent if never. Shown to residents:
+   * a public ledger that changes quietly is worth less than one that says so.
+   */
+  editedAt?: string;
   recordedBy: string;
   createdAt: string;
 }

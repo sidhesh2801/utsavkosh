@@ -5,6 +5,7 @@ import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from "@/lib/types";
 import { humanise, methodLabel, toDateInput } from "@/lib/format";
 import { useSociety } from "@/lib/store";
 import { Button, Field, Sheet, useToast } from "./ui";
+import type { Expense } from "@/lib/types";
 
 /**
  * Whether this browser holds a committee session.
@@ -70,24 +71,46 @@ export function AddExpenseButton({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+/**
+ * Correcting an entry, for the committee.
+ *
+ * The same sheet as recording one. An amount typed wrong, or a bill that only
+ * arrived a week later, should not need the row deleted and retyped — that
+ * loses the date it was recorded and every reference to it. The correction
+ * stamps the row instead, and the ledger shows the stamp.
+ */
+export function ExpenseSheet({
+  onClose,
+  onSaved,
+  existing,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+  existing?: Expense;
+}) {
   const { data } = useSociety();
   const toast = useToast();
 
-  const [title, setTitle] = useState("");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState<string>("miscellaneous");
-  const [vendor, setVendor] = useState("");
-  const [billNo, setBillNo] = useState("");
-  const [paidBy, setPaidBy] = useState("");
-  const [method, setMethod] = useState<string>("upi");
-  const [paidAt, setPaidAt] = useState(toDateInput(new Date().toISOString()));
-  const [activityId, setActivityId] = useState("");
+  const [title, setTitle] = useState(existing?.title ?? "");
+  const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
+  const [category, setCategory] = useState<string>(existing?.category ?? "miscellaneous");
+  const [vendor, setVendor] = useState(existing?.vendor ?? "");
+  const [billNo, setBillNo] = useState(existing?.billNo ?? "");
+  const [paidBy, setPaidBy] = useState(existing?.paidBy ?? "");
+  const [method, setMethod] = useState<string>(existing?.method ?? "upi");
+  const [paidAt, setPaidAt] = useState(
+    toDateInput(existing?.paidAt ?? new Date().toISOString()),
+  );
+  const [activityId, setActivityId] = useState(existing?.activityId ?? "");
   const [file, setFile] = useState<File | null>(null);
   // Kept once uploaded, so retrying a failed save doesn't upload it twice.
   const [billPath, setBillPath] = useState<string | null>(null);
+  // Only meaningful when editing something that already has one.
+  const [dropBill, setDropBill] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const keptBill = Boolean(existing?.hasBill) && !dropBill && !file;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,10 +137,16 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         setBillPath(path);
       }
 
+      // On an edit, billPath is sent only when it actually changed: absent
+      // means "leave the attachment alone", null means "remove it".
+      const attachment =
+        path !== null ? { billPath: path } : dropBill ? { billPath: null } : {};
+
       const res = await fetch("/api/expenses", {
-        method: "POST",
+        method: existing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(existing ? { id: existing.id } : {}),
           title,
           amount: Number(amount),
           category,
@@ -127,7 +156,7 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           method,
           paidAt,
           activityId: activityId || null,
-          billPath: path,
+          ...(existing ? attachment : { billPath: path }),
         }),
       });
       const payload = (await res.json().catch(() => ({}))) as { error?: string };
@@ -136,7 +165,7 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         setBusy(false);
         return;
       }
-      toast("Expense recorded.");
+      toast(existing ? "Entry corrected." : "Expense recorded.");
       onSaved();
     } catch {
       setError("Couldn't reach the server. Check your connection.");
@@ -148,15 +177,19 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     <Sheet
       open
       onClose={onClose}
-      title="Record an expense"
-      description="Everyone can see this entry — the vendor, bill number and who paid. The attached photo stays with the committee."
+      title={existing ? "Correct this entry" : "Record an expense"}
+      description={
+        existing
+          ? "The ledger will show that this entry was edited, so residents reading it know it changed."
+          : "Everyone can see this entry — the vendor, bill number and who paid. The attached photo stays with the committee."
+      }
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Saving…" : "Record expense"}
+            {busy ? "Saving…" : existing ? "Save correction" : "Record expense"}
           </Button>
         </>
       }
@@ -241,16 +274,42 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           label="Bill or payment screenshot"
           hint="Committee only. Residents see that proof is on file, not the image."
         >
-          <input
-            className="field"
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={(e) => {
-              setFile(e.target.files?.[0] ?? null);
-              // A different file means the old upload no longer applies.
-              setBillPath(null);
-            }}
-          />
+          {keptBill ? (
+            <div className="flex items-center gap-3 rounded-[10px] bg-surface-sunken px-3 py-2.5">
+              <span className="flex-1 text-[0.8125rem] text-ink">Already on file</span>
+              <button
+                type="button"
+                onClick={() => setDropBill(true)}
+                className="text-[0.6875rem] font-medium text-debit underline decoration-debit/30 underline-offset-2"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <input
+              className="field"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null);
+                // A different file means the old upload no longer applies.
+                setBillPath(null);
+                setDropBill(false);
+              }}
+            />
+          )}
+          {existing?.hasBill && dropBill && !file ? (
+            <p className="mt-1.5 text-[0.6875rem] text-debit">
+              The attached file will be deleted when you save.{" "}
+              <button
+                type="button"
+                onClick={() => setDropBill(false)}
+                className="font-medium underline decoration-debit/30 underline-offset-2"
+              >
+                Keep it
+              </button>
+            </p>
+          ) : null}
         </Field>
 
         <Field label="For which activity">

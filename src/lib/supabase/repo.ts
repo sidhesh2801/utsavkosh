@@ -103,6 +103,7 @@ function toExpense(r: Row): Expense {
     paidBy: opt(r.paid_by),
     note: opt(r.note),
     hasBill: Boolean(r.has_bill),
+    editedAt: opt(r.updated_at),
     recordedBy: str(r.recorded_by),
     createdAt: str(r.created_at),
   };

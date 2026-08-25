@@ -119,7 +119,10 @@ create table if not exists public.expenses (
   bill_path   text,
   has_bill    boolean generated always as (bill_path is not null) stored,
   recorded_by uuid not null references public.members (id) on delete restrict,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  -- Set when the committee corrects an entry, and shown to residents. A public
+  -- ledger that changes quietly is worth less than one that says it changed.
+  updated_at  timestamptz
 );
 
 create index if not exists expenses_activity_idx on public.expenses (activity_id);
@@ -439,7 +442,7 @@ grant select on public.activities to anon;
 revoke select on public.expenses from anon;
 grant select (
   id, title, category, amount, vendor, activity_id, paid_at, method,
-  bill_no, note, paid_by, has_bill, recorded_by, created_at
+  bill_no, note, paid_by, has_bill, recorded_by, created_at, updated_at
 ) on public.expenses to anon;
 grant select on public.albums     to anon;
 grant select on public.photos     to anon;
