@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSociety } from "@/lib/store";
 import { Button, Card, EmptyState, Field, PageHeader, SectionTitle, useToast } from "@/components/ui";
 import { useCommitteeSession } from "@/components/ledger-admin";
@@ -33,7 +33,21 @@ interface Serving {
  * at once and none of them will think to reload.
  */
 export default function FoodCounterPage() {
+  return (
+    <Suspense fallback={null}>
+      <Counter />
+    </Suspense>
+  );
+}
+
+function Counter() {
   const committee = useCommitteeSession();
+  const { data } = useSociety();
+  // Which festival's counter this is. Without it the tiles would add every
+  // festival's servings together and tell the volunteer the wrong number.
+  const activityId = useSearchParams().get("activity");
+  const festival = data.activities.find((a) => a.id === activityId) ?? null;
+  const scope = activityId ? `?activity=${encodeURIComponent(activityId)}` : "";
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Serving[]>([]);
   const [perHour, setPerHour] = useState<{ hour: string; people: number }[]>([]);
@@ -41,14 +55,14 @@ export default function FoodCounterPage() {
   const [version, setVersion] = useState(0);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/coupons/stats");
+    const res = await fetch(`/api/coupons/stats${scope}`);
     if (!res.ok) return;
     const d = await res.json();
     setSummary(d.summary);
     setRecent(d.recent ?? []);
     setPerHour(d.perHour ?? []);
     setVersion((v) => v + 1);
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     if (!committee.authenticated) return;
@@ -69,7 +83,7 @@ export default function FoodCounterPage() {
         description="Sign in with the same password as the receipt generator to run the counter."
         action={
           <a
-            href="/generator-login?next=/food-counter"
+            href={`/generator-login?next=${encodeURIComponent(`/food-counter${scope}`)}`}
             className="inline-flex items-center rounded-[10px] bg-brand px-4 py-2.5 text-[0.8125rem] font-medium text-white"
           >
             Sign in
@@ -87,7 +101,7 @@ export default function FoodCounterPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Food counter"
+        title={festival ? `Food counter — ${festival.title}` : "Food counter"}
         subtitle="Point your phone camera at a coupon QR to serve. This page keeps itself up to date."
       />
 
@@ -107,7 +121,7 @@ export default function FoodCounterPage() {
           For someone at the counter without one — a flat phone, a guest. Counted the same as any
           other, so the headcount stays true.
         </p>
-        <WalkInForm />
+        <WalkInForm activityId={activityId} />
       </Card>
 
       {perHour.length ? (
@@ -137,7 +151,7 @@ export default function FoodCounterPage() {
         </Card>
       ) : null}
 
-      <CouponList refreshKey={version} />
+      <CouponList refreshKey={version} activityId={activityId ?? undefined} />
 
       <Card>
         <div className="px-4 pt-4">
@@ -196,7 +210,7 @@ function Tile({
   );
 }
 
-function WalkInForm() {
+function WalkInForm({ activityId }: { activityId?: string | null }) {
   const router = useRouter();
   const { data } = useSociety();
   const toast = useToast();
@@ -212,7 +226,10 @@ function WalkInForm() {
     const res = await fetch("/api/coupons", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, wing, flat, members: Number(members), walkIn: true }),
+      body: JSON.stringify({
+        name, wing, flat, members: Number(members), walkIn: true,
+        ...(activityId ? { activityId } : {}),
+      }),
     });
     const payload = await res.json();
     setBusy(false);

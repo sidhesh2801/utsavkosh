@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { useSociety } from "@/lib/store";
 import { flatProblem } from "@/lib/food";
@@ -24,8 +25,22 @@ interface Coupon {
  * camera permissions, nothing to install on a hundred phones.
  */
 export default function FoodCouponPage() {
+  // useSearchParams needs a boundary, or the whole route opts out of static
+  // rendering and Next refuses to build it.
+  return (
+    <Suspense fallback={null}>
+      <Register />
+    </Suspense>
+  );
+}
+
+function Register() {
   const { data } = useSociety();
   const committee = useCommitteeSession();
+  // Set when the resident arrived from a festival tile, so the coupon lands
+  // against that festival rather than whichever one is nearest today.
+  const activityId = useSearchParams().get("activity");
+  const festival = data.activities.find((a) => a.id === activityId) ?? null;
 
   const [name, setName] = useState("");
   const [wing, setWing] = useState("");
@@ -56,7 +71,10 @@ export default function FoodCouponPage() {
       const res = await fetch("/api/coupons", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, wing, flat, mobile, members: Number(members) }),
+        body: JSON.stringify({
+          name, wing, flat, mobile, members: Number(members),
+          ...(activityId ? { activityId } : {}),
+        }),
       });
       const payload = await res.json();
       if (!res.ok) {
@@ -76,7 +94,7 @@ export default function FoodCouponPage() {
     return (
       <>
         <CouponIssued coupon={coupon} already={already} society={data.society.name} />
-        <Registered />
+        <Registered activityId={activityId} />
       </>
     );
   }
@@ -84,7 +102,7 @@ export default function FoodCouponPage() {
   return (
     <div>
       <PageHeader
-        title="Food coupon"
+        title={festival ? `Food coupon — ${festival.title}` : "Food coupon"}
         subtitle="Register your flat once. Show the QR at the counter — one coupon covers your whole family."
       />
 
@@ -179,11 +197,14 @@ export default function FoodCouponPage() {
         rather than issuing a second one. For a larger family, please ask a committee member.
       </p>
 
-      <Registered />
+      <Registered activityId={activityId} />
 
       {committee.authenticated ? (
         <p className="mt-4 text-[0.8125rem]">
-          <a href="/food-counter" className="text-brand underline decoration-brand/30 underline-offset-2">
+          <a
+            href={`/food-counter${activityId ? `?activity=${encodeURIComponent(activityId)}` : ""}`}
+            className="text-brand underline decoration-brand/30 underline-offset-2"
+          >
             Open the serving counter →
           </a>
         </p>
@@ -270,14 +291,16 @@ interface Family {
  * they put down — never the mobile number, and never the coupon code, which is
  * the part that gets scanned.
  */
-function Registered() {
+function Registered({ activityId }: { activityId?: string | null }) {
   const [families, setFamilies] = useState<Family[] | null>(null);
   const [people, setPeople] = useState(0);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch("/api/coupons/registered")
+      fetch(
+        `/api/coupons/registered${activityId ? `?activity=${encodeURIComponent(activityId)}` : ""}`,
+      )
         .then((r) => r.json())
         .then((d) => {
           setFamilies(d.families ?? []);
@@ -286,7 +309,7 @@ function Registered() {
         .catch(() => setFamilies([]));
     }, 0);
     return () => clearTimeout(t);
-  }, []);
+  }, [activityId]);
 
   if (!families) return null;
 

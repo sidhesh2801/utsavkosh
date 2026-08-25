@@ -6,13 +6,20 @@ import { useSociety } from "@/lib/store";
 import { fundSummary } from "@/lib/finance";
 import { money } from "@/lib/format";
 import { Card } from "@/components/ui";
+import { FestivalTiles } from "@/components/festival-tiles";
 
 /**
- * The home page: what the society holds, and the three things you can do.
+ * The home page: what the society holds, which festivals are running, and the
+ * doors into all of them at once.
  *
- * Deliberately short. Two of the three doors are open to every resident; only
- * writing a receipt asks for a password, and that is said on the card rather
- * than discovered by being turned away.
+ * Festivals come first because that is how a resident thinks about it — they
+ * want Ganeshotsav's accounts, not the society's running total. The combined
+ * figure stays at the top for the committee's own view of the whole year, and
+ * the four doors below reach every festival together.
+ *
+ * Two of the four are open to every resident; only writing a receipt asks for
+ * a password, and that is said on the card rather than discovered by being
+ * turned away.
  */
 export default function HomePage() {
   const { data } = useSociety();
@@ -26,7 +33,8 @@ export default function HomePage() {
           Festival accounts, open to everyone
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
-          Every rupee collected and every rupee spent is listed here. No sign-in needed to look.
+          Every rupee collected and every rupee spent is listed here, festival by festival. No
+          sign-in needed to look.
         </p>
       </div>
 
@@ -34,7 +42,7 @@ export default function HomePage() {
       <Card className="overflow-hidden">
         <div className="border-b border-line bg-brand-soft px-5 py-5">
           <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-brand-ink/70">
-            Balance in hand
+            Balance in hand · all festivals
           </p>
           <p className="tnum mt-1 text-[2.75rem] font-semibold leading-none tracking-[-0.02em] text-brand-ink">
             {money(summary.balance)}
@@ -53,7 +61,11 @@ export default function HomePage() {
         ) : null}
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <FestivalTiles />
+
+      <div>
+        <h2 className="mb-3 text-[0.9375rem] font-semibold text-ink">Everything together</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Option
           href="/donations"
           title="Donations"
@@ -104,6 +116,7 @@ export default function HomePage() {
             </>
           }
         />
+        </div>
       </div>
     </div>
   );

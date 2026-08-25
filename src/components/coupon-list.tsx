@@ -27,7 +27,13 @@ type Filter = "all" | "waiting" | "partly" | "done";
  * Searchable by flat, because the question at a counter is always "has N-1802
  * already eaten", never "show me everyone".
  */
-export function CouponList({ refreshKey }: { refreshKey?: number }) {
+export function CouponList({
+  refreshKey,
+  activityId,
+}: {
+  refreshKey?: number;
+  activityId?: string;
+}) {
   const { data } = useSociety();
   const [coupons, setCoupons] = useState<Coupon[] | null>(null);
   const [query, setQuery] = useState("");
@@ -36,11 +42,13 @@ export function CouponList({ refreshKey }: { refreshKey?: number }) {
   const confirm = useConfirm();
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/coupons/list");
+    const res = await fetch(
+      `/api/coupons/list${activityId ? `?activity=${encodeURIComponent(activityId)}` : ""}`,
+    );
     if (!res.ok) return;
     const d = await res.json();
     setCoupons(d.coupons ?? []);
-  }, []);
+  }, [activityId]);
 
   useEffect(() => {
     const t = setTimeout(load, 0);

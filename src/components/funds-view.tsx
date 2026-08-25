@@ -80,15 +80,34 @@ export function FundsView({
   only,
   title,
   subtitle,
+  activityId,
 }: {
   only?: Tab;
   title?: string;
   subtitle?: string;
+  /**
+   * Pins the whole screen to one festival. The tiles, the tables and the CSV
+   * then describe that festival alone — arriving from its tile and being shown
+   * the society's combined total would answer a question nobody asked.
+   */
+  activityId?: string;
 } = {}) {
   const { data, isAdmin, canCollect } = useSociety();
   const [tab, setTab] = useState<Tab>(only ?? "overview");
 
-  const summary = useMemo(() => fundSummary(data.donations, data.expenses), [data]);
+  const scoped = useMemo(() => {
+    if (!activityId) return data;
+    return {
+      ...data,
+      donations: data.donations.filter((d) => d.activityId === activityId),
+      expenses: data.expenses.filter((e) => e.activityId === activityId),
+    };
+  }, [data, activityId]);
+
+  const summary = useMemo(
+    () => fundSummary(scoped.donations, scoped.expenses),
+    [scoped],
+  );
 
   return (
     <div>
@@ -132,8 +151,8 @@ export function FundsView({
         {(
           [
             ["overview", "Overview"],
-            ["donations", `Who contributed (${data.donations.length})`],
-            ["expenses", `Where it went (${data.expenses.length})`],
+            ["donations", `Who contributed (${scoped.donations.length})`],
+            ["expenses", `Where it went (${scoped.expenses.length})`],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -152,8 +171,10 @@ export function FundsView({
       </div>
 
       {tab === "overview" ? <Overview /> : null}
-      {tab === "donations" ? <DonationsTab canCollect={canCollect} isAdmin={isAdmin} /> : null}
-      {tab === "expenses" ? <ExpensesTab isAdmin={isAdmin} /> : null}
+      {tab === "donations" ? (
+        <DonationsTab canCollect={canCollect} isAdmin={isAdmin} pinned={activityId} />
+      ) : null}
+      {tab === "expenses" ? <ExpensesTab isAdmin={isAdmin} pinned={activityId} /> : null}
     </div>
   );
 }
@@ -312,12 +333,20 @@ function Ledger({ limit }: { limit?: number }) {
 
 /* --------------------------------------------------------------- donations */
 
-function DonationsTab({ canCollect }: { canCollect: boolean; isAdmin?: boolean }) {
+function DonationsTab({
+  canCollect,
+  pinned,
+}: {
+  canCollect: boolean;
+  isAdmin?: boolean;
+  /** Set when the screen belongs to one festival; the picker then disappears. */
+  pinned?: string;
+}) {
   // Same committee session as the ledger and the receipt generator.
   const committee = useCommitteeSession();
   const { data } = useSociety();
   const [query, setQuery] = useState("");
-  const [activityFilter, setActivityFilter] = useState("all");
+  const [activityFilter, setActivityFilter] = useState(pinned ?? "all");
   const [statusFilter, setStatusFilter] = useState<"all" | "verified" | "pending">("all");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Donation | null>(null);
@@ -366,8 +395,11 @@ function DonationsTab({ canCollect }: { canCollect: boolean; isAdmin?: boolean }
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Search donations"
         />
+        {/* Hidden when the page is already one festival's — offering to
+            switch away from it would contradict the page you are on. */}
         <select
           className="field w-auto"
+          hidden={!!pinned}
           value={activityFilter}
           onChange={(e) => setActivityFilter(e.target.value)}
           aria-label="Filter by activity"
@@ -528,14 +560,14 @@ function ExpenseRowWithRemove({
 
 /* ---------------------------------------------------------------- expenses */
 
-function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
+function ExpensesTab({ isAdmin, pinned }: { isAdmin: boolean; pinned?: string }) {
   // Editing the ledger is governed by the committee session — the same
   // password as the receipt generator — rather than a separate app account.
   const committee = useCommitteeSession();
   const canEdit = committee.authenticated || isAdmin;
   const { data } = useSociety();
   const [query, setQuery] = useState("");
-  const [activityFilter, setActivityFilter] = useState("all");
+  const [activityFilter, setActivityFilter] = useState(pinned ?? "all");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
 
@@ -586,6 +618,7 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
         />
         <select
           className="field w-auto"
+          hidden={!!pinned}
           value={activityFilter}
           onChange={(e) => setActivityFilter(e.target.value)}
           aria-label="Filter by activity"

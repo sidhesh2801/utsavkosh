@@ -13,11 +13,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Food coupons aren't set up yet." }, { status: 503 });
   }
 
-  const { data, error } = await serviceClient()
+  // Scoped to one festival when the counter asks, so a volunteer running
+  // Ganeshotsav does not scroll past Janmashtami's families to find a flat.
+  const activity = new URL(request.url).searchParams.get("activity");
+  let query = serviceClient()
     .from("food_coupons")
     .select("code, name, wing, flat, mobile, members, served, walk_in, created_at")
     .order("created_at", { ascending: false })
     .limit(5000);
+  if (activity) query = query.eq("activity_id", activity);
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

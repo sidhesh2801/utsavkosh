@@ -36,6 +36,8 @@ export async function POST(request: Request) {
     mobile?: string;
     members?: number;
     walkIn?: boolean;
+    /** Which festival this coupon is for; the nearest one if not given. */
+    activityId?: string;
   };
   try {
     body = await request.json();
@@ -75,7 +77,23 @@ export async function POST(request: Request) {
     if (problem) return NextResponse.json({ error: problem }, { status: 400 });
   }
 
-  const activityId = await currentActivityId(db);
+  // A festival tile passes the festival explicitly. Verified rather than
+  // trusted: an unknown id would otherwise attach the coupon to nothing, and
+  // it would never appear on any counter.
+  let activityId: string | null = null;
+  if (body.activityId) {
+    const { data: named } = await db
+      .from("activities")
+      .select("id")
+      .eq("id", body.activityId)
+      .maybeSingle();
+    if (!named) {
+      return NextResponse.json({ error: "That festival doesn't exist." }, { status: 400 });
+    }
+    activityId = String(named.id);
+  } else {
+    activityId = await currentActivityId(db);
+  }
 
   const { data, error } = await db
     .from("food_coupons")

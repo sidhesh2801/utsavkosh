@@ -9,14 +9,20 @@ import { foodConfigured, serviceClient } from "@/lib/food";
  * they registered for, and nothing else: not the mobile number they gave, and
  * not the coupon code, which is the thing that gets scanned.
  */
-export async function GET() {
+export async function GET(request: Request) {
   if (!foodConfigured) return NextResponse.json({ families: [], people: 0 });
 
-  const { data, error } = await serviceClient()
+  // One festival's list, when asked for. Otherwise every coupon ever issued,
+  // which after two festivals is a list nobody can find their flat in.
+  const activity = new URL(request.url).searchParams.get("activity");
+  let query = serviceClient()
     .from("food_coupons")
     .select("name, wing, flat, members, created_at")
     .order("created_at", { ascending: false })
     .limit(3000);
+  if (activity) query = query.eq("activity_id", activity);
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
