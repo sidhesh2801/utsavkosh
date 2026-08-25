@@ -79,9 +79,13 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [category, setCategory] = useState<string>("miscellaneous");
   const [vendor, setVendor] = useState("");
   const [billNo, setBillNo] = useState("");
+  const [paidBy, setPaidBy] = useState("");
   const [method, setMethod] = useState<string>("upi");
   const [paidAt, setPaidAt] = useState(toDateInput(new Date().toISOString()));
   const [activityId, setActivityId] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  // Kept once uploaded, so retrying a failed save doesn't upload it twice.
+  const [billPath, setBillPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,6 +94,26 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     setError(null);
     setBusy(true);
     try {
+      // The file goes up first: if it fails there is no half-recorded entry
+      // claiming a bill that was never stored.
+      let path = billPath;
+      if (file && !path) {
+        const form = new FormData();
+        form.append("file", file);
+        const up = await fetch("/api/expenses/attachment", { method: "POST", body: form });
+        const upPayload = (await up.json().catch(() => ({}))) as {
+          path?: string;
+          error?: string;
+        };
+        if (!up.ok || !upPayload.path) {
+          setError(upPayload.error ?? "Could not attach that file.");
+          setBusy(false);
+          return;
+        }
+        path = upPayload.path;
+        setBillPath(path);
+      }
+
       const res = await fetch("/api/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,9 +123,11 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           category,
           vendor,
           billNo,
+          paidBy,
           method,
           paidAt,
           activityId: activityId || null,
+          billPath: path,
         }),
       });
       const payload = (await res.json().catch(() => ({}))) as { error?: string };
@@ -123,7 +149,7 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
       open
       onClose={onClose}
       title="Record an expense"
-      description="Everyone can see this entry, including the vendor and bill number."
+      description="Everyone can see this entry — the vendor, bill number and who paid. The attached photo stays with the committee."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -182,7 +208,7 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
               ))}
             </select>
           </Field>
-          <Field label="Paid by">
+          <Field label="How it was paid">
             <select className="field" value={method} onChange={(e) => setMethod(e.target.value)}>
               {PAYMENT_METHODS.map((m) => (
                 <option key={m} value={m}>
@@ -201,6 +227,31 @@ function ExpenseSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             <input className="field" value={billNo} onChange={(e) => setBillNo(e.target.value)} />
           </Field>
         </div>
+
+        <Field label="Paid by" hint="Who handed the money over — the person to reimburse.">
+          <input
+            className="field"
+            value={paidBy}
+            onChange={(e) => setPaidBy(e.target.value)}
+            placeholder="e.g. Sidhesh Kumar"
+          />
+        </Field>
+
+        <Field
+          label="Bill or payment screenshot"
+          hint="Committee only. Residents see that proof is on file, not the image."
+        >
+          <input
+            className="field"
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              // A different file means the old upload no longer applies.
+              setBillPath(null);
+            }}
+          />
+        </Field>
 
         <Field label="For which activity">
           <select

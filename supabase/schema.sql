@@ -111,6 +111,13 @@ create table if not exists public.expenses (
   method      text not null check (method in ('upi', 'cash', 'bank-transfer', 'cheque')),
   bill_no     text,
   note        text,
+  -- Who handed the money to the vendor. Not the same person as recorded_by,
+  -- and the question every reimbursement starts with.
+  paid_by     text,
+  -- Object key in the private 'bills' bucket. Withheld from anon: the photo is
+  -- often a UPI confirmation carrying the payer's own name, handle and balance.
+  bill_path   text,
+  has_bill    boolean generated always as (bill_path is not null) stored,
   recorded_by uuid not null references public.members (id) on delete restrict,
   created_at  timestamptz not null default now()
 );
@@ -426,7 +433,14 @@ grant select (
 
 grant select on public.societies  to anon;
 grant select on public.activities to anon;
-grant select on public.expenses   to anon;
+-- Column list, not the whole table: bill_path must never reach a resident.
+-- This is why the app selects expense columns by name (EXPENSE_COLUMNS in
+-- src/lib/supabase/client.ts) — a `select *` would be refused for a guest.
+revoke select on public.expenses from anon;
+grant select (
+  id, title, category, amount, vendor, activity_id, paid_at, method,
+  bill_no, note, paid_by, has_bill, recorded_by, created_at
+) on public.expenses to anon;
 grant select on public.albums     to anon;
 grant select on public.photos     to anon;
 
@@ -445,6 +459,12 @@ on conflict (id) do update set public = false;
 
 insert into storage.buckets (id, name, public)
 values ('qrcodes', 'qrcodes', false)
+on conflict (id) do update set public = false;
+
+-- Vendor bills and payment screenshots against ledger entries. Private for the
+-- same reason as proofs: a UPI confirmation shows the payer's own account.
+insert into storage.buckets (id, name, public)
+values ('bills', 'bills', false)
 on conflict (id) do update set public = false;
 
 drop policy if exists gallery_public_read on storage.objects;
@@ -482,6 +502,18 @@ create policy qrcodes_admin_write on storage.objects for insert to authenticated
 drop policy if exists qrcodes_admin_delete on storage.objects;
 create policy qrcodes_admin_delete on storage.objects for delete to authenticated
   using (bucket_id = 'qrcodes' and public.is_admin());
+
+drop policy if exists bills_staff_read on storage.objects;
+create policy bills_staff_read on storage.objects for select to authenticated
+  using (bucket_id = 'bills' and public.is_staff());
+
+drop policy if exists bills_staff_write on storage.objects;
+create policy bills_staff_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'bills' and public.is_staff());
+
+drop policy if exists bills_staff_delete on storage.objects;
+create policy bills_staff_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'bills' and public.is_staff());
 
 -- --------------------------------------------------------- realtime --------
 -- Lets every phone see a volunteer's entry appear within a second.

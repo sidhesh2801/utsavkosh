@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabase, PUBLIC_DONATION_COLUMNS, STAFF_DONATION_COLUMNS } from "./client";
+import {
+  EXPENSE_COLUMNS,
+  getSupabase,
+  PUBLIC_DONATION_COLUMNS,
+  STAFF_DONATION_COLUMNS,
+} from "./client";
 import type {
   Activity,
   Album,
@@ -95,7 +100,9 @@ function toExpense(r: Row): Expense {
     paidAt: str(r.paid_at),
     method: str(r.method) as Expense["method"],
     billNo: opt(r.bill_no),
+    paidBy: opt(r.paid_by),
     note: opt(r.note),
+    hasBill: Boolean(r.has_bill),
     recordedBy: str(r.recorded_by),
     createdAt: str(r.created_at),
   };
@@ -162,7 +169,7 @@ export async function loadAll(signedIn: boolean): Promise<SocietyData> {
         .from("donations")
         .select(signedIn ? STAFF_DONATION_COLUMNS : PUBLIC_DONATION_COLUMNS)
         .order("received_at", { ascending: false }),
-      supabase.from("expenses").select("*").order("paid_at", { ascending: false }),
+      supabase.from("expenses").select(EXPENSE_COLUMNS).order("paid_at", { ascending: false }),
       supabase.from("albums").select("*").order("date", { ascending: false }),
       supabase.from("photos").select("*").order("uploaded_at", { ascending: true }),
     ]);
@@ -237,7 +244,9 @@ export async function loadAll(signedIn: boolean): Promise<SocietyData> {
     members,
     activities: ((activitiesRes.data ?? []) as Row[]).map(toActivity),
     donations,
-    expenses: ((expensesRes.data ?? []) as Row[]).map(toExpense),
+    // `as unknown` for the same reason as donations above: the column list is
+    // chosen at runtime, so supabase-js can't infer the row shape from it.
+    expenses: ((expensesRes.data ?? []) as unknown as Row[]).map(toExpense),
     albums: ((albumsRes.data ?? []) as Row[]).map(toAlbum),
     photos,
     paymentQrs,
@@ -409,6 +418,7 @@ export async function insertExpense(
         paid_at: input.paidAt,
         method: input.method,
         bill_no: input.billNo ?? null,
+        paid_by: input.paidBy ?? null,
         note: input.note ?? null,
         recorded_by: input.recordedBy,
       }),
@@ -429,6 +439,7 @@ export async function updateExpense(id: string, patch: Partial<Expense>): Promis
         paid_at: patch.paidAt,
         method: patch.method,
         bill_no: patch.billNo,
+        paid_by: patch.paidBy,
         note: patch.note,
       }),
     )

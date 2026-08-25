@@ -49,3 +49,12 @@ export const PUBLIC_DONATION_COLUMNS: string =
 
 /** Everything, for signed-in staff who need the mobile number and notes. */
 export const STAFF_DONATION_COLUMNS: string = "*";
+
+/**
+ * Expense columns, for the same reason: anon holds a column-level grant here
+ * too, so `select *` would ask for bill_path and be refused for a signed-out
+ * visitor. bill_path is fetched only by the server routes that hold the
+ * service key — a bill photo can be a UPI screenshot of the payer's account.
+ */
+export const EXPENSE_COLUMNS: string =
+  "id, title, category, amount, vendor, activity_id, paid_at, method, bill_no, note, paid_by, has_bill, recorded_by, created_at";

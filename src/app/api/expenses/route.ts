@@ -74,6 +74,10 @@ interface Body {
   method?: string;
   note?: string;
   activityId?: string | null;
+  /** Who handed the money over. Public. */
+  paidBy?: string;
+  /** Key returned by /api/expenses/attachment. Never shown to residents. */
+  billPath?: string | null;
 }
 
 export async function POST(request: Request) {
@@ -111,6 +115,8 @@ export async function POST(request: Request) {
         paid_at: body.paidAt || new Date().toISOString().slice(0, 10),
         method: body.method || "upi",
         note: (body.note ?? "").trim() || null,
+        paid_by: (body.paidBy ?? "").trim() || null,
+        bill_path: body.billPath || null,
         activity_id: body.activityId ?? null,
         recorded_by: await committeeMemberId(),
       });
@@ -134,7 +140,23 @@ export async function DELETE(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Which entry?" }, { status: 400 });
 
-  const { error } = await admin().from("expenses").delete().eq("id", id);
+  const supabase = admin();
+
+  // Read the attachment key before the row goes, or the file is orphaned in
+  // the bucket with nothing left pointing at it.
+  const { data: existing } = await supabase
+    .from("expenses")
+    .select("bill_path")
+    .eq("id", id)
+    .maybeSingle();
+
+  const { error } = await supabase.from("expenses").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (existing?.bill_path) {
+    // Best effort: the ledger row is already gone, and a stray private file is
+    // not worth failing the request the committee just watched succeed.
+    await supabase.storage.from("bills").remove([String(existing.bill_path)]);
+  }
   return NextResponse.json({ ok: true });
 }

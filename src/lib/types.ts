@@ -146,7 +146,18 @@ export interface Expense {
   method: PaymentMethod;
   /** Bill / invoice number, so any resident can ask to see the paper. */
   billNo?: string;
+  /**
+   * Who handed the money to the vendor — not the same as who typed the row,
+   * and the question every reimbursement starts with.
+   */
+  paidBy?: string;
   note?: string;
+  /**
+   * True when a bill or payment screenshot is attached. The key itself is
+   * withheld from residents, because the image can be a UPI confirmation
+   * showing the payer's own account.
+   */
+  hasBill?: boolean;
   recordedBy: string;
   createdAt: string;
 }

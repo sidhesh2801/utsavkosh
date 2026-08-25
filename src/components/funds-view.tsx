@@ -514,7 +514,7 @@ function ExpenseRowWithRemove({
   return (
     <li>
       <ul>
-        <ExpenseRow expense={expense} onEdit={onEdit} />
+        <ExpenseRow expense={expense} onEdit={onEdit} canSeeBill={canEdit} />
       </ul>
       {canEdit ? (
         <div className="px-4 pb-2.5 -mt-1">
@@ -550,6 +550,7 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
           e.title.toLowerCase().includes(q) ||
           (e.vendor ?? "").toLowerCase().includes(q) ||
           (e.billNo ?? "").toLowerCase().includes(q) ||
+          (e.paidBy ?? "").toLowerCase().includes(q) ||
           e.category.includes(q)
         );
       })
@@ -567,6 +568,8 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
     e.billNo ?? "",
     e.amount,
     methodLabel(e.method),
+    e.paidBy ?? "",
+    e.hasBill ? "yes" : "",
     e.activityId ? (activityById.get(e.activityId)?.title ?? "") : "General spending",
   ]);
 
@@ -575,7 +578,7 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
       <div className="flex flex-wrap items-center gap-2">
         <input
           className="field max-w-[16rem] flex-1"
-          placeholder="Search item, vendor or bill no."
+          placeholder="Search item, vendor, bill no. or who paid"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Search expenses"
@@ -599,7 +602,7 @@ function ExpensesTab({ isAdmin }: { isAdmin: boolean }) {
           kind="expenses"
           headers={[
             "Date", "Item", "Category", "Vendor", "Bill no.",
-            "Amount (INR)", "Paid by", "For",
+            "Amount (INR)", "Method", "Paid by", "Bill attached", "For",
           ]}
           rows={csvRows}
         />

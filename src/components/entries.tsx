@@ -570,6 +570,7 @@ export function ExpenseForm({
   const [paidAt, setPaidAt] = useState(existing ? toDateInput(existing.paidAt) : today());
   const [method, setMethod] = useState<Expense["method"]>(existing?.method ?? "upi");
   const [billNo, setBillNo] = useState(existing?.billNo ?? "");
+  const [paidBy, setPaidBy] = useState(existing?.paidBy ?? "");
   const [note, setNote] = useState(existing?.note ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -591,6 +592,7 @@ export function ExpenseForm({
       paidAt,
       method,
       billNo: billNo.trim() || undefined,
+      paidBy: paidBy.trim() || undefined,
       note: note.trim() || undefined,
     };
     const result = existing ? await updateExpense(existing.id, payload) : await addExpense(payload);
@@ -700,6 +702,10 @@ export function ExpenseForm({
           </Field>
         </div>
 
+        <Field label="Paid by" hint="Who handed the money over — the person to reimburse.">
+          <input className="field" value={paidBy} onChange={(e) => setPaidBy(e.target.value)} />
+        </Field>
+
         <Field label="Note">
           <textarea
             className="field resize-y"
@@ -720,14 +726,61 @@ export function ExpenseForm({
   );
 }
 
+/**
+ * Opens the attached bill.
+ *
+ * The bucket is private, so the URL has to be signed on the server first. The
+ * tab is opened synchronously on the click and pointed at the URL afterwards:
+ * open it after the await and the browser has already forgotten this was a
+ * user action, and blocks it as a popup.
+ */
+function BillLink({ expenseId }: { expenseId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setProblem(null);
+          const tab = window.open("", "_blank");
+          const res = await fetch(`/api/expenses/${expenseId}/bill`);
+          const payload = (await res.json().catch(() => ({}))) as {
+            url?: string;
+            error?: string;
+          };
+          setBusy(false);
+          if (!res.ok || !payload.url) {
+            tab?.close();
+            setProblem(payload.error ?? "Could not open the bill.");
+            return;
+          }
+          if (tab) tab.location.href = payload.url;
+          else window.location.href = payload.url; // popups blocked
+        }}
+        className="text-[0.6875rem] font-medium text-brand underline decoration-brand/30 underline-offset-2 disabled:opacity-50"
+      >
+        {busy ? "Opening…" : "View bill"}
+      </button>
+      {problem ? <span className="text-[0.6875rem] text-debit">{problem}</span> : null}
+    </>
+  );
+}
+
 export function ExpenseRow({
   expense,
   showActivity = true,
   onEdit,
+  canSeeBill = false,
 }: {
   expense: Expense;
   showActivity?: boolean;
   onEdit?: () => void;
+  /** Committee sessions get the signed link; everyone else just the note. */
+  canSeeBill?: boolean;
 }) {
   const { activityById, memberById } = useLookups();
   const activity = expense.activityId ? activityById.get(expense.activityId) : null;
@@ -745,9 +798,17 @@ export function ExpenseRow({
         <span className="tnum">{shortDate(expense.paidAt)}</span>
         <span>{methodLabel(expense.method)}</span>
       </p>
-      {expense.billNo ? (
-        <p className="tnum mt-1 text-[0.6875rem] text-ink-faint">Bill {expense.billNo}</p>
-      ) : null}
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] text-ink-faint">
+        {expense.billNo ? <span className="tnum">Bill {expense.billNo}</span> : null}
+        {expense.paidBy ? <span>Paid by {expense.paidBy}</span> : null}
+        {expense.hasBill ? (
+          canSeeBill ? (
+            <BillLink expenseId={expense.id} />
+          ) : (
+            <span title="Kept with the committee — ask to see it">Bill on file</span>
+          )
+        ) : null}
+      </p>
       {showActivity ? (
         <p className="mt-1 truncate text-xs text-ink-faint">
           {activity ? activity.title : "General society spending"}
