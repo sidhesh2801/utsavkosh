@@ -167,7 +167,12 @@ const writeDirect = args.includes("--write");
 const assumeYes = args.includes("--yes") || args.includes("-y");
 const csvFlagAt = args.indexOf("--csv");
 const csvPathArg = csvFlagAt >= 0 ? args[csvFlagAt + 1] : null;
-const positional = args.filter((a, i) => !a.startsWith("-") && i !== csvFlagAt + 1);
+// The guard on csvFlagAt matters: with no --csv flag it is -1, so a bare
+// `i !== csvFlagAt + 1` drops argument 0 — the statement itself — and the
+// activity name is read as the filename.
+const positional = args.filter(
+  (a, i) => !a.startsWith("-") && (csvFlagAt < 0 || i !== csvFlagAt + 1),
+);
 const [fileArg, activityArg] = positional;
 
 if (!fileArg) {
