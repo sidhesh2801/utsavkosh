@@ -21,6 +21,11 @@ import { useCommitteeSession } from "./ledger-admin";
  * because the festival being run right now is the one everybody has come for.
  */
 
+/** The day a festival stops running. Its start day, when it has no end date. */
+function lastDay(activity: Activity): string {
+  return (activity.endsAt ?? activity.startsAt).slice(0, 10);
+}
+
 interface Standing {
   activity: Activity;
   collected: number;
@@ -53,8 +58,11 @@ export function FestivalTiles() {
         // Upcoming and ongoing first, in date order; finished ones after, most
         // recent first. A festival three weeks away matters more than one from
         // last year, whichever way a plain date sort would put them.
-        const aOver = a.activity.startsAt.slice(0, 10) < today;
-        const bOver = b.activity.startsAt.slice(0, 10) < today;
+        //
+        // Measured from the end, not the start: a two-day festival is not over
+        // on the morning of its second day.
+        const aOver = lastDay(a.activity) < today;
+        const bOver = lastDay(b.activity) < today;
         if (aOver !== bOver) return aOver ? 1 : -1;
         return aOver
           ? b.activity.startsAt.localeCompare(a.activity.startsAt)
@@ -127,9 +135,12 @@ export function FestivalTiles() {
 
 function FestivalTile({ standing }: { standing: Standing }) {
   const { activity, collected, spent, balance, donors } = standing;
-  const when = shortDate(activity.startsAt);
   const today = new Date().toISOString().slice(0, 10);
-  const over = activity.startsAt.slice(0, 10) < today;
+  const over = lastDay(activity) < today;
+  const running = activity.startsAt.slice(0, 10) <= today && !over;
+  const when = activity.endsAt
+    ? `${shortDate(activity.startsAt)} – ${shortDate(activity.endsAt)}`
+    : shortDate(activity.startsAt);
 
   return (
     <Link href={`/festival/${activity.id}`} className="block">
@@ -144,7 +155,7 @@ function FestivalTile({ standing }: { standing: Standing }) {
           <p className="tnum mt-0.5 text-xs text-brand-ink/70">
             {when}
             {activity.venue ? ` · ${activity.venue}` : ""}
-            {over ? " · finished" : ""}
+            {over ? " · finished" : running ? " · on now" : ""}
           </p>
         </div>
         <div className="grid grid-cols-3 divide-x divide-line">

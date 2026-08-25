@@ -29,27 +29,40 @@ export async function isCommittee(request: Request): Promise<boolean> {
   return isValidSessionToken(match?.[1]);
 }
 
-/** The activity coupons belong to — the nearest festival still to happen. */
+/**
+ * The festival a coupon belongs to when the resident didn't name one.
+ *
+ * A festival that is running *right now* wins, which is the whole point of
+ * reading ends_at. Janmashtami starts on the 4th and the dahi handi is on the
+ * 5th: on the 5th its start date is in the past, so picking "the nearest
+ * festival still to come" would hand that morning's coupons to Ganeshotsav ten
+ * days away, and they would never appear on the counter serving them.
+ *
+ * Failing that, the next one to come; failing that, the most recent, so the
+ * day after a festival still attaches to the festival it belongs to.
+ */
 export async function currentActivityId(db: SupabaseClient): Promise<string | null> {
   const today = new Date().toISOString().slice(0, 10);
-  const { data: upcoming } = await db
+  const { data } = await db
     .from("activities")
-    .select("id")
-    .gte("starts_at", today)
-    .order("starts_at")
-    .limit(1)
-    .maybeSingle();
-  if (upcoming?.id) return String(upcoming.id);
+    .select("id, starts_at, ends_at")
+    .order("starts_at");
 
-  // Nothing ahead: fall back to the most recent, so coupons still attach to
-  // something sensible on the day itself.
-  const { data: latest } = await db
-    .from("activities")
-    .select("id")
-    .order("starts_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return latest?.id ? String(latest.id) : null;
+  const rows = (data ?? []).map((a) => ({
+    id: String(a.id),
+    from: String(a.starts_at).slice(0, 10),
+    // A festival with no end date runs for its start day alone.
+    to: String(a.ends_at ?? a.starts_at).slice(0, 10),
+  }));
+  if (!rows.length) return null;
+
+  const running = rows.find((a) => a.from <= today && a.to >= today);
+  if (running) return running.id;
+
+  const next = rows.find((a) => a.from > today);
+  if (next) return next.id;
+
+  return rows[rows.length - 1].id;
 }
 
 export async function maxMembers(db: SupabaseClient): Promise<number> {
