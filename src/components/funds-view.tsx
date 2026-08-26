@@ -380,6 +380,7 @@ function DonationsTab({
     d.isTenant ? "Tenant" : "Owner",
     d.amount,
     methodLabel(d.method),
+    d.reference ?? "",
     d.activityId ? (activityById.get(d.activityId)?.title ?? "") : "General fund",
     d.status === "verified" ? "Verified" : "Awaiting handover",
   ]);
@@ -390,7 +391,7 @@ function DonationsTab({
       <div className="flex flex-wrap items-center gap-2">
         <input
           className="field max-w-[16rem] flex-1"
-          placeholder="Search name, flat or reference"
+          placeholder="Search name, flat or transaction ID"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Search donations"
@@ -427,7 +428,7 @@ function DonationsTab({
           kind="donations"
           headers={[
             "Receipt no.", "Date", "Name", "Flat", "Owner/Tenant",
-            "Amount (INR)", "Method", "Towards", "Status",
+            "Amount (INR)", "Method", "Transaction ID", "Towards", "Status",
           ]}
           rows={csvRows}
         />
@@ -456,6 +457,7 @@ function DonationsTab({
                 <th className="px-4 py-2.5 font-semibold">Flat no.</th>
                 <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
                 <th className="px-4 py-2.5 font-semibold">Towards</th>
+                <th className="px-4 py-2.5 font-semibold">Transaction ID</th>
                 <th className="px-4 py-2.5 font-semibold">Status</th>
                 <th className="px-4 py-2.5 font-semibold">Receipt</th>
                 {canCollect ? <th className="px-4 py-2.5 font-semibold" /> : null}
@@ -483,6 +485,18 @@ function DonationsTab({
                     {d.activityId
                       ? (activityById.get(d.activityId)?.title ?? "—")
                       : "General fund"}
+                  </td>
+                  {/* The UPI reference or PhonePe id. It is how a resident
+                      recognises their own line — half the QR contributions
+                      carry no name, so this is the only thing that does. */}
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-xs text-ink-faint">
+                    {d.reference ? (
+                      <span title={d.reference}>
+                        {d.reference.length > 14 ? `…${d.reference.slice(-10)}` : d.reference}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5">
                     {d.status === "verified" ? (

@@ -525,7 +525,10 @@ async function refreshMasterList(rest, activityId, addedCount) {
   };
 
   const csv = [
-    ["S.No", "Receipt No", "Name", "Flat No", "Amount (Rs.)", "Date", "Mode", "Source", "Reference", "Status"]
+    // "Transaction ID" rather than "Reference": it is the UPI reference or the
+    // PhonePe id, and for the QR contributions that carry no name it is the
+    // only thing a resident can recognise their own payment by.
+    ["S.No", "Receipt No", "Name", "Flat No", "Amount (Rs.)", "Date", "Mode", "Source", "Transaction ID", "Status"]
       .map(cell)
       .join(","),
     ...rows.map((d, i) =>
