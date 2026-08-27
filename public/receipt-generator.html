@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v23 · send fixed</span>
+    <span class="build">build v24 · one send button</span>
   </p>
 
   <div class="card scan">
@@ -217,8 +217,7 @@
   </div>
 
   <div class="row">
-    <button id="sendNumber">Open chat (text only)</button>
-    <button id="shareImage">Send receipt image</button>
+    <button id="shareImage">Send receipt</button>
     <button id="download" class="secondary">Save image</button>
     <button id="print" class="secondary">Print</button>
     <button id="next" class="secondary">Next receipt</button>
@@ -919,97 +918,40 @@
     return new File([bytes], fileName(), { type: "image/png" });
   }
 
-  function openChatWithText(number, text) {
-    if (!number) {
-      toast("Enter their WhatsApp number to open the chat.");
-      $("mobile").focus();
-      return;
-    }
-    window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(text), "_blank");
-  }
-
   /*
-   * Normalise to the wa.me form: country code, digits only.
-   * A ten-digit Indian mobile gets 91 prefixed; a number that already carries a
-   * country code is left as it is.
-   */
-  function whatsappNumber(input) {
-    var digits = String(input || "").replace(/\D/g, "");
-    if (!digits) return null;
-    if (digits.length === 10 && /^[6-9]/.test(digits)) return "91" + digits;
-    if (digits.length === 12 && digits.indexOf("91") === 0) return digits;
-    if (digits.length === 11 && digits.charAt(0) === "0") return "91" + digits.slice(1);
-    if (digits.length >= 11 && digits.length <= 15) return digits;
-    return null;
-  }
-
-  /*
-   * Two separate buttons, because the platform genuinely cannot do both.
+   * One button, because WhatsApp allows exactly one of the two things.
    *
-   * A wa.me link opens a chosen number's chat but can only carry text. The
-   * share sheet can attach the picture but cannot be pointed at a number.
-   * Trying to be clever about which to use meant sometimes no chat opened at
-   * all, so each action is now its own button and does exactly what it says.
+   * A wa.me link carries a phone number and text and has no parameter for a
+   * file. The share sheet carries a file and text and cannot be pointed at a
+   * contact. So a send either knows who it is going to or knows what it is
+   * carrying, never both.
+   *
+   * This picks carrying the receipt. A volunteer choosing the contact costs
+   * one tap; a receipt that silently went out as a bare line of text costs a
+   * resident their proof of payment, and it is not obvious it happened.
    */
-  $("sendNumber").addEventListener("click", function () {
-    var number = whatsappNumber($("mobile").value);
-    if (!number) {
-      toast("Enter their WhatsApp number first.");
-      $("mobile").focus();
-      return;
-    }
-
-    /*
-     * Copy the picture BEFORE opening the chat.
-     *
-     * clipboard.write needs this document focused, and window.open hands focus
-     * straight to WhatsApp — so copying afterwards failed every time with
-     * "Document is not focused", the catch fired, and the volunteer was told to
-     * use the other button instead of being handed something to paste.
-     *
-     * Both calls stay in this one synchronous block, so the tap still counts as
-     * user activation for each. Anything the copy throws is swallowed: it is a
-     * convenience, and it must not stop the chat from opening, which is the one
-     * thing this button promises.
-     */
-    var copying = null;
-    try {
-      if (navigator.clipboard && window.ClipboardItem && window.isSecureContext) {
-        copying = navigator.clipboard.write([
-          new ClipboardItem({ "image/png": receiptFileNow() }),
-        ]);
-      }
-    } catch (e) {
-      copying = null;
-    }
-
-    window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(caption()), "_blank");
-
-    if (copying) {
-      copying
-        .then(function () { toast("Chat opened. Long-press the message box and paste the receipt."); })
-        .catch(function () { toast("Chat opened — now tap “Send image” to attach the receipt."); });
-    } else {
-      toast("Chat opened — now tap “Send image” to attach the receipt.");
-    }
-  });
-
   $("shareImage").addEventListener("click", function () {
+    // Built synchronously: see receiptFileNow. Anything async here and the tap
+    // stops counting as user activation, which is what made the old version
+    // send text alone.
     var file = receiptFileNow();
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       navigator.share({ files: [file], text: caption() }).catch(function (err) {
-        // Dismissing the sheet is a normal action, not a failure.
-        if (err && err.name !== "AbortError") toast("Could not open the share menu.");
+        // Backing out of the share sheet is a normal thing to do.
+        if (err && err.name !== "AbortError") {
+          toast("Couldn't open the share menu — use “Save image” and attach it.");
+        }
       });
       return;
     }
 
+    // A desktop browser, mostly. Save it and say so, rather than pretending.
     var url = URL.createObjectURL(file);
     var a = document.createElement("a");
     a.href = url; a.download = file.name; a.click();
     URL.revokeObjectURL(url);
-    toast("Saved the image — attach it in WhatsApp.");
+    toast("This browser can't share — saved " + file.name + ", attach it in WhatsApp.");
   });
 
   $("print").addEventListener("click", function () { window.print(); });
