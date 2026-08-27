@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v22 · send fixed</span>
+    <span class="build">build v23 · send fixed</span>
   </p>
 
   <div class="card scan">
@@ -217,8 +217,8 @@
   </div>
 
   <div class="row">
-    <button id="sendNumber">Open chat &amp; send text</button>
-    <button id="shareImage">Send image</button>
+    <button id="sendNumber">Open chat (text only)</button>
+    <button id="shareImage">Send receipt image</button>
     <button id="download" class="secondary">Save image</button>
     <button id="print" class="secondary">Print</button>
     <button id="next" class="secondary">Next receipt</button>
@@ -959,20 +959,38 @@
       return;
     }
 
-    // Open the chat FIRST. Copying the picture is a nice-to-have, and anything
-    // it throws must not stop the one thing this button promises to do.
-    window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(caption()), "_blank");
-
+    /*
+     * Copy the picture BEFORE opening the chat.
+     *
+     * clipboard.write needs this document focused, and window.open hands focus
+     * straight to WhatsApp — so copying afterwards failed every time with
+     * "Document is not focused", the catch fired, and the volunteer was told to
+     * use the other button instead of being handed something to paste.
+     *
+     * Both calls stay in this one synchronous block, so the tap still counts as
+     * user activation for each. Anything the copy throws is swallowed: it is a
+     * convenience, and it must not stop the chat from opening, which is the one
+     * thing this button promises.
+     */
+    var copying = null;
     try {
       if (navigator.clipboard && window.ClipboardItem && window.isSecureContext) {
-        var file = receiptFileNow();
-        navigator.clipboard
-          .write([new ClipboardItem({ "image/png": file })])
-          .then(function () { toast("Chat opened. Long-press the box and paste the receipt."); })
-          .catch(function () { toast("Chat opened. Use “Send image” to attach the receipt."); });
+        copying = navigator.clipboard.write([
+          new ClipboardItem({ "image/png": receiptFileNow() }),
+        ]);
       }
     } catch (e) {
-      toast("Chat opened. Use “Send image” to attach the receipt.");
+      copying = null;
+    }
+
+    window.open("https://wa.me/" + number + "?text=" + encodeURIComponent(caption()), "_blank");
+
+    if (copying) {
+      copying
+        .then(function () { toast("Chat opened. Long-press the message box and paste the receipt."); })
+        .catch(function () { toast("Chat opened — now tap “Send image” to attach the receipt."); });
+    } else {
+      toast("Chat opened — now tap “Send image” to attach the receipt.");
     }
   });
 
