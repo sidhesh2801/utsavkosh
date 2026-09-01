@@ -1,0 +1,35 @@
+# Transactions the committee has deliberately taken out of the register.
+#
+# Re-running an import is meant to be safe — that is the whole point of it, and
+# it is how the ledger gets proved against the bank. But a deleted row is not
+# recorded anywhere, so without this file the next import would quietly put
+# every one of these back and the committee's decision would be undone by a
+# routine job nobody watched.
+#
+# One reference per line: a PhonePe transaction id or a bank UTR/RRN. Anything
+# after # is a note. Matching is on either id, because the same payment is
+# known by the T-id in the PhonePe export and by the UTR on the bank statement.
+#
+# Removing a line here lets the payment be imported again on the next run.
+
+# --- QR test payments, 22 Aug 2026 ---------------------------------------
+# Volunteers checking the QR worked before collections opened. Real money and
+# real lines on the statement, but not contributions from anybody.
+T2608221358321300018210   # Rs 1
+T2608221358015001955804   # Rs 1
+T2608221330178662921917   # Rs 1
+T2608221225373243770566   # Rs 1
+T2608220950596106655244   # Rs 1  (settled separately as the IMPS Re 1)
+110494912787              # the same five, by their bank UTR
+110494910044
+240973755310
+623423432527
+
+# --- Removed by the committee, 24 Aug 2026 -------------------------------
+# Taken out on 26 Aug 2026 on the committee's instruction.
+T2608242205429454795980   # Rs 2,000
+T2608242209230202673980   # Rs 3,100
+T2608242255478689502210   # Rs 3,100
+360233400614              # the same three, by their bank UTR
+696016303926
+623637799830
