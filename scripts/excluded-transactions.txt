@@ -19,11 +19,17 @@ T2608221358321300018210   # Rs 1
 T2608221358015001955804   # Rs 1
 T2608221330178662921917   # Rs 1
 T2608221225373243770566   # Rs 1
-T2608220950596106655244   # Rs 1  (settled separately as the IMPS Re 1)
+T2608220950596106655244   # Rs 1  — the only row in the export with no UTR at
+                          #        all: no instrument, no UPI amount. It reached
+                          #        the bank on its own as an IMPS credit rather
+                          #        than inside a settlement, which is why the
+                          #        22 Aug payments total 20,482 and the 23 Aug
+                          #        settlement is 20,481.
 110494912787              # the same five, by their bank UTR
 110494910044
 240973755310
 623423432527
+623409666209              # the IMPS reference the statement gives that last one
 
 # --- Removed by the committee, 24 Aug 2026 -------------------------------
 # Taken out on 26 Aug 2026 on the committee's instruction.

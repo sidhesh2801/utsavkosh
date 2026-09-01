@@ -76,6 +76,50 @@ so re-importing a whole month proves the ledger matches the bank. Duplicates are
 caught on the transaction reference where the bank gives one, otherwise on name
 + amount + date together.
 
+### PhonePe QR — import the merchant export, not the bank line
+
+The bank shows QR money as three or four lump `NEFT … PHONEPE LIMITED`
+settlements. **Never import those.** They are the same contributions the
+merchant export lists one by one, and taking both records every payment twice.
+
+Get the export from **PhonePe Business → Transactions → download**, as CSV. It
+arrives named `M22V4M40T0EIO_FORWARD_TRANSACTION_<digits>.csv`.
+
+```bash
+node --env-file=.env.local scripts/import-phonepe.mjs \
+  ~/Downloads/M22V4M40T0EIO_FORWARD_TRANSACTION_*.csv \
+  "Janmashtami & Dahi Handi 2026" --write
+```
+
+A separate script from the statement importer, because three things differ and
+each one has already caused a wrong number:
+
+- **`Transaction Status` — about one row in twenty is `ERRORED`.** A failed
+  payment. A bank statement never shows these because no money moved, so the
+  statement importer has no idea they exist. Four of them once went in as
+  donations, Rs 3,202 nobody gave, on rows with no name to notice it by. The
+  script drops them, and reports any already recorded so they can be removed.
+- **Every payment has two ids** — the PhonePe transaction id (`T2608…`) and the
+  bank UTR. The same contribution appears under the T-id here and under the UTR
+  on the statement, so the duplicate check tries both. Two payments were once in
+  twice for exactly this reason.
+- **No payer name.** PhonePe does not pass one to the merchant; `Store Name` is
+  the society's own account, not the donor. Every row lands as
+  `Anonymous (QR payment)` and residents claim their own from the WhatsApp list
+  by amount, date and the last four digits.
+
+The export reconciles against the bank by settlement, one day later: completed
+payments dated the 23rd equalled the settlement received on the 24th, to the
+rupee. That check is worth running whenever a total looks wrong.
+
+### Deleting a donation — it comes back unless you say so
+
+A removed row is recorded nowhere, so the next import puts it straight back.
+Add its transaction id (and its UTR, if the bank has one) to
+**`scripts/excluded-transactions.txt`**, with a note saying why. Both importers
+read it. Without that line, a routine job quietly undoes the committee's
+decision.
+
 ### Cash — enter it in the app
 
 Cash never reaches a statement, so it has to be typed:
@@ -85,6 +129,26 @@ Cash never reaches a statement, so it has to be typed:
 It refuses an entry matching one already recorded, using the same test the
 import uses, so a cash entry typed at noon can't double up when the statement
 imports at night.
+
+Cash entries are the reason a total can move without any import having run —
+worth remembering before treating a changed figure as a bug.
+
+### After any change — rebuild what people read
+
+The database is the record; these two are generated from it and drift silently
+otherwise. Run both after an import, a cash entry or a deletion:
+
+```bash
+# donation_list.csv, from the register rather than from the statement
+npm run import-donations -- --refresh --write --csv ~/Downloads/donation_list.csv
+
+# the WhatsApp donor list and the QR claim sheet
+node --env-file=.env.local scripts/build-donor-message.mjs
+```
+
+The WhatsApp message is written three times over — Marathi, Hindi, English — so
+it is generated, never edited by hand. It had already drifted once, still
+showing 104 donors and Rs 74,344 when the app held 175 and Rs 1,23,355.
 
 ### Spending
 
@@ -172,6 +236,9 @@ Enforced by Postgres, not the browser:
 
 ```
 scripts/import-donations.mjs    statement → report → SQL or direct write
+scripts/import-phonepe.mjs      PhonePe merchant export → report → write
+scripts/build-donor-message.mjs register → WhatsApp list + QR claim sheet
+scripts/excluded-transactions.txt  payments the committee removed for good
 public/receipt-generator.html   the generator: one self-contained file
 src/app/api/                    committee-only writes, session checks
 src/components/funds-view.tsx   the donations table and the ledger

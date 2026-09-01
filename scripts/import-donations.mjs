@@ -20,6 +20,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /* ------------------------------------------------------------------ CSV */
 
@@ -156,6 +157,25 @@ function titleCase(name) {
     .replace(/[A-Za-z]+/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
 
+/**
+ * Payments the committee has deliberately taken out of the register.
+ *
+ * Shared with scripts/import-phonepe.mjs. Re-running a statement is meant to be
+ * safe, but a deleted row is recorded nowhere — so without this the next run
+ * would put every removed entry back and undo the decision by way of a routine
+ * job nobody watched.
+ */
+const EXCLUDED = (() => {
+  const file = join(dirname(fileURLToPath(import.meta.url)), "excluded-transactions.txt");
+  if (!existsSync(file)) return new Set();
+  return new Set(
+    readFileSync(file, "utf8")
+      .split(/\r?\n/)
+      .map((l) => l.replace(/#.*$/, "").trim())
+      .filter(Boolean),
+  );
+})();
+
 /** Statement lines that are not contributions. */
 const NOT_A_DONATION =
   /\b(opening balance|closing balance|b\/f|c\/f|charges?|gst|reversal|refund|interest|atm|salary)\b/i;
@@ -241,6 +261,7 @@ if (!refreshOnly) {
 
 const entries = [];
 const problems = [];
+const excludedHere = [];
 let statedTotal = null;
 
 rows.slice(1).forEach((row, i) => {
@@ -271,6 +292,12 @@ rows.slice(1).forEach((row, i) => {
     return;
   }
 
+  const reference = cell("reference") || null;
+  if (reference && EXCLUDED.has(reference)) {
+    excludedHere.push({ line, amount, reference });
+    return;
+  }
+
   const { wing, flat } = readFlat(cell("flat"));
   entries.push({
     line,
@@ -279,7 +306,7 @@ rows.slice(1).forEach((row, i) => {
     flat,
     amount,
     date: date ?? new Date().toISOString().slice(0, 10),
-    reference: cell("reference") || null,
+    reference,
     source: cell("source") || null,
   });
 });
@@ -325,6 +352,10 @@ if (duplicates.length) {
   for (const g of duplicates) {
     console.log(`     ${g[0].name}: ${g.map((e) => inr(e.amount)).join(", ")}`);
   }
+}
+if (excludedHere.length) {
+  console.log(`\n  ${excludedHere.length} deliberately excluded — see scripts/excluded-transactions.txt:`);
+  for (const e of excludedHere) console.log(`     line ${e.line}: ${inr(e.amount)} ${e.reference}`);
 }
 if (problems.length) {
   console.log(`\n  ${problems.length} rows skipped:`);
