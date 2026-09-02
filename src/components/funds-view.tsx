@@ -489,14 +489,12 @@ function DonationsTab({
                   {/* The UPI reference or PhonePe id. It is how a resident
                       recognises their own line — half the QR contributions
                       carry no name, so this is the only thing that does. */}
-                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-xs text-ink-faint">
-                    {d.reference ? (
-                      <span title={d.reference}>
-                        {d.reference.length > 14 ? `…${d.reference.slice(-10)}` : d.reference}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
+                  {/* In full, not abbreviated: it is what a donor matches
+                      against their own payment app, and half of it is no use
+                      for that. The table scrolls sideways rather than the
+                      reference being cut. */}
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-[0.6875rem] text-ink-faint">
+                    {d.reference || "—"}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5">
                     {d.status === "verified" ? (
@@ -505,12 +503,24 @@ function DonationsTab({
                       <span className="text-warn">Awaiting handover</span>
                     )}
                   </td>
+                  {/* Every donation has a receipt number the moment its row
+                      exists — the database assigns one by trigger — so the
+                      receipt is always available and is drawn on demand. This
+                      is also how the QR contributions get receipted at all:
+                      nobody knows who they belong to, but the donor recognises
+                      their own transaction and takes their own copy. */}
                   <td className="whitespace-nowrap px-4 py-2.5">
+                    <a
+                      href={`/receipt.html?id=${d.id}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="text-brand underline decoration-brand/30 underline-offset-2"
+                    >
+                      Receipt
+                    </a>
                     {d.receiptSentAt ? (
-                      <span className="text-credit">Sent</span>
-                    ) : (
-                      <span className="text-ink-faint">Not yet</span>
-                    )}
+                      <span className="ml-1.5 text-[0.6875rem] text-credit">sent</span>
+                    ) : null}
                   </td>
                   {canCollect ? (
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">

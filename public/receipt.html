@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Your receipt — UtsavKosh</title>
+<style>
+  :root {
+    --ink: #18181b; --soft: #52525b; --faint: #a1a1aa;
+    --line: #e4e4e7; --bg: #fafaf9; --brand: #c2410c; --brand-deep: #9a3412;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 1rem; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.15rem; margin: 0 0 .15rem; letter-spacing: -.01em; }
+  .sub { color: var(--soft); font-size: .8125rem; margin: 0 0 1rem; }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: .75rem; margin-bottom: .85rem;
+  }
+  canvas { width: 100%; height: auto; display: block; border-radius: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: .5rem; }
+  button {
+    flex: 1 1 8rem; min-height: 46px; border: 0; border-radius: 11px;
+    background: var(--brand); color: #fff; font: inherit; font-weight: 600;
+    cursor: pointer;
+  }
+  button:active { background: var(--brand-deep); }
+  button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; }
+  .meta { font-size: .8125rem; color: var(--soft); margin: .6rem 0 0; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .state { padding: 2rem 1rem; text-align: center; color: var(--soft); }
+  .bad { color: #b91c1c; }
+  a { color: var(--brand); }
+  #toast {
+    position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%) translateY(1rem);
+    background: #18181b; color: #fff; padding: .6rem 1rem; border-radius: 10px;
+    font-size: .8125rem; opacity: 0; pointer-events: none; transition: .18s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%); }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .card { border: 0; padding: 0; }
+    .row, h1, .sub, .meta { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Your donation receipt</h1>
+  <p class="sub">Wellington — Pride World City · Festival Committee</p>
+
+  <div id="state" class="state">Loading your receipt…</div>
+
+  <div id="sheet" hidden>
+    <div class="card"><canvas id="canvas" width="1500" height="1000" aria-label="Receipt"></canvas></div>
+    <div class="row">
+      <button id="save">Save image</button>
+      <button id="share" class="secondary">Share</button>
+      <button id="print" class="secondary">Print</button>
+    </div>
+    <p class="meta" id="meta"></p>
+  </div>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+/*
+ * A donor's own receipt, downloadable from the donations list.
+ *
+ * Public, because everything on it is already on that list — the receipt only
+ * arranges it onto the society's artwork. It exists because most QR
+ * contributions arrive with no payer name: rather than the committee chasing a
+ * hundred and sixty people to ask who they are, each donor recognises their own
+ * transaction id and takes their own receipt.
+ *
+ * Self-contained rather than sharing code with receipt-generator.html. The
+ * layout constants below are mirrored from that file and the two must be
+ * changed together — a deliberate cost, taken because the generator is what
+ * volunteers depend on during the festival and refactoring it days beforehand
+ * risks more than the duplication does.
+ */
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $("canvas");
+  var ctx = canvas.getContext("2d");
+
+  var FONT_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+  /* Mirrored from receipt-generator.html — keep in step. */
+  var SLOTS = {
+    receiptNo: { x: 0.319, y: 0.578 },
+    date:      { x: 0.713, y: 0.578 },
+    flatName:  { x: 0.444, y: 0.666 },
+    amount:    { x: 0.291, y: 0.763 }
+  };
+
+  /* ----------------------------------------------------------- formatting */
+
+  var ONES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+    "eighteen", "nineteen"];
+  var TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+  function under1000(n) {
+    var out = [];
+    if (n >= 100) { out.push(ONES[Math.floor(n / 100)] + " hundred"); n %= 100; }
+    if (n >= 20) { out.push(TENS[Math.floor(n / 10)] + (n % 10 ? "-" + ONES[n % 10] : "")); }
+    else if (n) out.push(ONES[n]);
+    return out.join(" ");
+  }
+
+  function inWords(amount) {
+    var rupees = Math.floor(Math.abs(amount));
+    if (!rupees) return "";
+    var parts = [];
+    var crore = Math.floor(rupees / 10000000);
+    var lakh = Math.floor((rupees % 10000000) / 100000);
+    var thousand = Math.floor((rupees % 100000) / 1000);
+    var rest = rupees % 1000;
+    if (crore) parts.push(under1000(crore) + " crore");
+    if (lakh) parts.push(under1000(lakh) + " lakh");
+    if (thousand) parts.push(under1000(thousand) + " thousand");
+    if (rest) parts.push(under1000(rest));
+    var w = parts.join(" ") + (rupees === 1 ? " rupee" : " rupees") + " only";
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }
+
+  function groupIndian(n) { return Number(n).toLocaleString("en-IN"); }
+
+  function prettyDate(iso) {
+    if (!iso) return "";
+    var d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return "";
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  /* --------------------------------------------------------------- assets */
+
+  function loadImage(src) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { resolve(null); };
+      img.src = src;
+    });
+  }
+
+  /*
+   * The committee's real stamp, lifted off the paper it was photographed on.
+   *
+   * Blueness rather than darkness separates ink from paper: in room light the
+   * "white" paper sits at much the same luminance as a light impression, but
+   * the paper is near-neutral while the ink is strongly blue.
+   */
+  function prepareStamp(img) {
+    var w = img.naturalWidth, h = img.naturalHeight;
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var g = c.getContext("2d");
+    g.drawImage(img, 0, 0);
+
+    var data;
+    try { data = g.getImageData(0, 0, w, h); } catch (e) { return null; }
+    var px = data.data;
+    var minX = w, minY = h, maxX = -1, maxY = -1;
+
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var i = (y * w + x) * 4;
+        var lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+        var blueness = px[i + 2] - px[i];
+        if (!(blueness > 22 && lum < 175)) {
+          px[i + 3] = 0;
+        } else {
+          px[i + 3] = Math.min(255, Math.round((blueness - 16) * 10));
+          px[i] = 40; px[i + 1] = 35; px[i + 2] = 122;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return null;
+    g.putImageData(data, 0, 0);
+
+    var cw = maxX - minX + 1, ch = maxY - minY + 1;
+    var out = document.createElement("canvas");
+    out.width = cw; out.height = ch;
+    out.getContext("2d").drawImage(c, minX, minY, cw, ch, 0, 0, cw, ch);
+    return out;
+  }
+
+  /* -------------------------------------------------------------- drawing */
+
+  function drawReceivedStamp(W, H, dateText) {
+    var w = W * 0.175, h = H * 0.072;
+    ctx.save();
+    ctx.translate(W * 0.215, H * 0.900);
+    ctx.rotate(-7 * Math.PI / 180);
+    ctx.globalAlpha = 0.85;
+
+    var ink = "#a32b1e";
+    ctx.strokeStyle = ink;
+    ctx.fillStyle = ink;
+    ctx.lineWidth = Math.max(3, H * 0.005);
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.lineWidth = Math.max(2, H * 0.0024);
+    ctx.strokeRect(-w / 2 + H * 0.009, -h / 2 + H * 0.009, w - H * 0.018, h - H * 0.018);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "700 " + Math.round(H * 0.034) + "px " + FONT_STACK;
+
+    // Spaced by hand — canvas letterSpacing isn't dependable across browsers.
+    var word = "RECEIVED", spacing = H * 0.007, widths = [], total = 0, i;
+    for (i = 0; i < word.length; i++) {
+      var cw = ctx.measureText(word[i]).width;
+      widths.push(cw);
+      total += cw + (i < word.length - 1 ? spacing : 0);
+    }
+    var x = -total / 2;
+    for (i = 0; i < word.length; i++) {
+      ctx.fillText(word[i], x + widths[i] / 2, dateText ? -h * 0.13 : 0);
+      x += widths[i] + spacing;
+    }
+    if (dateText) {
+      ctx.font = "600 " + Math.round(H * 0.017) + "px " + FONT_STACK;
+      ctx.fillText(dateText, 0, h * 0.28);
+    }
+    ctx.restore();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  }
+
+  function render(template, stamp, d) {
+    canvas.width = template ? template.naturalWidth : 1500;
+    canvas.height = template ? template.naturalHeight : 1000;
+    var W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+    if (template) ctx.drawImage(template, 0, 0, W, H);
+    else { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H); }
+
+    ctx.fillStyle = "#111";
+    ctx.textBaseline = "alphabetic";
+    var base = Math.round(H * 0.040);
+
+    function put(slot, value, scale) {
+      if (!value) return;
+      ctx.font = "600 " + Math.round(base * (scale || 1)) + "px " + FONT_STACK;
+      var x = W * slot.x, max = W * 0.93 - x, shown = String(value);
+      while (shown.length > 4 && ctx.measureText(shown).width > max) shown = shown.slice(0, -2) + "…";
+      ctx.fillText(shown, x, H * slot.y);
+    }
+
+    put(SLOTS.receiptNo, d.receiptNo);
+    put(SLOTS.date, prettyDate(d.date));
+    put(SLOTS.flatName, [d.flat, d.name].filter(Boolean).join("  ·  "));
+    put(SLOTS.amount, d.amount ? groupIndian(d.amount) : "", 1.12);
+
+    if (d.amount) {
+      ctx.fillStyle = "#3f3f46";
+      ctx.font = "italic 400 " + Math.round(base * 0.58) + "px " + FONT_STACK;
+      ctx.fillText(inWords(d.amount), W * SLOTS.amount.x, H * (SLOTS.amount.y + 0.058));
+    }
+
+    // The payment this receipt is for, in full. A receipt whose payment cannot
+    // be traced is worth little, and this is also how the donor knows the
+    // paper is theirs rather than a neighbour's for the same amount.
+    if (d.reference) {
+      ctx.fillStyle = "#52525b";
+      var label = (d.method === "cash" ? "Ref: " : "UTR / Txn ID: ") + d.reference;
+      var size = base * 0.5, limit = W * 0.62;
+      ctx.font = "500 " + Math.round(size) + "px " + FONT_STACK;
+      while (size > base * 0.3 && ctx.measureText(label).width > limit) {
+        size -= 1;
+        ctx.font = "500 " + Math.round(size) + "px " + FONT_STACK;
+      }
+      ctx.fillText(label, W * SLOTS.receiptNo.x, H * (SLOTS.receiptNo.y + 0.036));
+    }
+
+    if (stamp) {
+      var size2 = H * 0.21;
+      var k = size2 / Math.max(stamp.width, stamp.height);
+      ctx.save();
+      ctx.globalAlpha = 0.97;
+      ctx.drawImage(stamp, W * 0.62, H * 0.80, stamp.width * k, stamp.height * k);
+      ctx.restore();
+    }
+
+    if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
+  }
+
+  /* --------------------------------------------------------------- output */
+
+  function fileName(d) {
+    return "receipt-" + String(d.receiptNo || "").replace(/[^\w-]+/g, "-") + ".png";
+  }
+
+  /* Synchronous, so the tap still counts as user activation when sharing. */
+  function fileNow(d) {
+    var url = canvas.toDataURL("image/png");
+    var bin = atob(url.split(",")[1]);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], fileName(d), { type: "image/png" });
+  }
+
+  function toast(msg) {
+    var el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast.t);
+    toast.t = setTimeout(function () { el.classList.remove("show"); }, 2600);
+  }
+
+  /* ----------------------------------------------------------------- boot */
+
+  function fail(message) {
+    $("state").innerHTML = '<p class="bad">' + message + "</p>" +
+      '<p><a href="/donations">Back to the donations list</a></p>';
+  }
+
+  var id = new URLSearchParams(location.search).get("id");
+  if (!id) { fail("This link is missing its receipt reference."); return; }
+
+  Promise.all([
+    fetch("/api/receipts/public?id=" + encodeURIComponent(id)).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, body: j }; });
+    }),
+    loadImage("receipt-template.png"),
+    loadImage("stamp.png")
+  ]).then(function (out) {
+    var res = out[0], template = out[1], stampImg = out[2];
+    if (!res.ok || !res.body.receipt) {
+      fail(res.body.error || "That receipt could not be found.");
+      return;
+    }
+    var d = res.body.receipt;
+    render(template, stampImg ? prepareStamp(stampImg) : null, d);
+
+    $("state").hidden = true;
+    $("sheet").hidden = false;
+    $("meta").innerHTML =
+      "Receipt <b>" + d.receiptNo + "</b> · " + prettyDate(d.date) +
+      (d.reference ? " · payment <b>" + d.reference + "</b>" : "") +
+      (d.name ? "" : "<br />This contribution came in by QR and carries no name. " +
+        "If it is yours, tell the committee your name and flat and it will be added.");
+
+    $("save").addEventListener("click", function () {
+      var f = fileNow(d);
+      var url = URL.createObjectURL(f);
+      var a = document.createElement("a");
+      a.href = url; a.download = f.name; a.click();
+      URL.revokeObjectURL(url);
+      toast("Saved " + f.name);
+    });
+
+    $("share").addEventListener("click", function () {
+      var f = fileNow(d);
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], text: "Donation receipt " + d.receiptNo }).catch(function (e) {
+          if (e && e.name !== "AbortError") toast("Couldn't open the share menu.");
+        });
+        return;
+      }
+      toast("This browser can't share — use Save image.");
+    });
+
+    $("print").addEventListener("click", function () { window.print(); });
+  }).catch(function () {
+    fail("Couldn't reach the register. Check your connection and reload.");
+  });
+})();
+</script>
+</body>
+</html>

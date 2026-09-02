@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v24 · one send button</span>
+    <span class="build">build v25 · receipts from the register</span>
   </p>
 
   <div class="card scan">
@@ -180,13 +180,26 @@
 
   <div class="card">
     <div class="grid">
-      <div>
-        <label for="receiptNo">Receipt No. <span class="opt">— counts up on its own</span></label>
-        <input id="receiptNo" inputmode="text" autocomplete="off" />
+      <div class="full">
+        <label for="txn">Transaction ID <span class="opt">— last 4 digits are enough</span></label>
+        <div class="row" style="margin:0">
+          <input id="txn" inputmode="text" autocomplete="off" placeholder="e.g. 2251" style="flex:1" />
+          <input id="txnAmount" inputmode="decimal" autocomplete="off" placeholder="₹ amount" style="width:8rem" />
+          <button id="lookup" type="button">Look up</button>
+        </div>
+        <p class="words" id="lookupNote">Find the payment in the register. The receipt is written against it.</p>
+        <label style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-weight:500">
+          <input type="checkbox" id="cash" style="width:auto;min-height:0" />
+          Cash — handed over in person, no transaction ID
+        </label>
       </div>
       <div>
-        <label for="date">Date</label>
-        <input id="date" type="date" />
+        <label for="receiptNo">Receipt No. <span class="opt">— from the register</span></label>
+        <input id="receiptNo" inputmode="text" autocomplete="off" readonly />
+      </div>
+      <div>
+        <label for="date">Date <span class="opt">— when it was paid</span></label>
+        <input id="date" type="date" readonly />
       </div>
       <div>
         <label for="flat">Flat No. <span class="opt">— optional</span></label>
@@ -197,8 +210,8 @@
         <input id="name" placeholder="e.g. Anup Deo" autocomplete="off" />
       </div>
       <div class="full">
-        <label for="amount">Amount ₹ <span class="opt">— optional</span></label>
-        <input id="amount" inputmode="decimal" placeholder="e.g. 501" autocomplete="off" />
+        <label for="amount">Amount ₹ <span class="opt">— as recorded, cannot be changed</span></label>
+        <input id="amount" inputmode="decimal" placeholder="found by look-up" autocomplete="off" readonly />
         <p class="words" id="words"></p>
       </div>
       <div class="full">
@@ -438,8 +451,49 @@
       ctx.fillText(inWords(d.amount), W * SLOTS.amount.x, H * (SLOTS.amount.y + 0.058));
     }
 
+    /*
+     * The payment this receipt is for, printed on its face.
+     *
+     * The whole reference, not just the tail: a receipt is the donor's proof,
+     * and proof that cannot be traced back to a payment is worth little. It is
+     * also what lets the committee find the row later without guessing between
+     * fifty-five contributions of Rs 501.
+     *
+     * Shrunk to fit rather than truncated. A PhonePe id is 23 characters and
+     * an abbreviated reference is not a reference.
+     */
+    if (d.reference) {
+      ctx.fillStyle = "#52525b";
+      var label = (d.method === "upi" ? "UTR / Txn ID: " : "Ref: ") + d.reference;
+      var size = base * 0.5;
+      var limit = W * 0.62;
+      ctx.font = "500 " + Math.round(size) + "px " + FONT_STACK;
+      while (size > base * 0.3 && ctx.measureText(label).width > limit) {
+        size -= 1;
+        ctx.font = "500 " + Math.round(size) + "px " + FONT_STACK;
+      }
+      ctx.fillText(label, W * SLOTS.receiptNo.x, H * (SLOTS.receiptNo.y + 0.036));
+    }
+
     drawSeal(W, H);
     if (d.amount) drawReceivedStamp(W, H, prettyDate(d.date));
+    // A reprint has to say so on its face, or two pieces of paper for one
+    // payment both read as originals.
+    if (d.duplicate) drawDuplicateMark(W, H);
+  }
+
+  /* Says on the paper that this is not the original. */
+  function drawDuplicateMark(W, H) {
+    ctx.save();
+    ctx.translate(W * 0.5, H * 0.44);
+    ctx.rotate(-0.28);
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = "#b91c1c";
+    ctx.textAlign = "center";
+    ctx.font = "800 " + Math.round(H * 0.13) + "px " + FONT_STACK;
+    ctx.fillText("DUPLICATE", 0, 0);
+    ctx.restore();
+    ctx.textAlign = "left";
   }
 
   /*
@@ -754,6 +808,38 @@
     ctx.textBaseline = "alphabetic";
   }
 
+  /*
+   * The payment this receipt belongs to, once looked up.
+   *
+   * Everything printed comes from here rather than from what a volunteer
+   * types, which is the whole mechanism: an amount nobody enters cannot be
+   * entered wrongly, and a receipt tied to a payment cannot be issued twice
+   * without the register saying so.
+   */
+  var payment = null;
+
+  function clearPayment() {
+    payment = null;
+    $("receiptNo").value = "";
+    $("amount").value = "";
+    $("date").value = "";
+    setSendable(false);
+    draw();
+  }
+
+  /* The send controls only work against a verified payment. */
+  function setSendable(on) {
+    ["shareImage", "download", "print"].forEach(function (id) {
+      $(id).disabled = !on;
+    });
+  }
+
+  function note(text, tone) {
+    var el = $("lookupNote");
+    el.textContent = text;
+    el.style.color = tone === "bad" ? "#b91c1c" : tone === "good" ? "#15803d" : "";
+  }
+
   function currentData() {
     var amountRaw = $("amount").value.replace(/[^0-9.]/g, "");
     var amount = amountRaw ? Number(amountRaw) : 0;
@@ -766,7 +852,11 @@
       amount: amount,
       society: $("society").value.trim(),
       name: name,
-      flat: flat
+      flat: flat,
+      reference: payment ? payment.reference : "",
+      last4: payment ? payment.last4 : "",
+      method: payment ? payment.method : "",
+      duplicate: payment ? payment.issued : false
     };
   }
 
@@ -899,6 +989,7 @@
       URL.revokeObjectURL(url);
       toast("Saved " + fileName());
     });
+    void recordIssue();
   });
 
   /*
@@ -930,11 +1021,135 @@
    * one tap; a receipt that silently went out as a bare line of text costs a
    * resident their proof of payment, and it is not obvious it happened.
    */
+  /* ------------------------------------------------- against the register */
+
+  /*
+   * Look the payment up before anything can be written against it.
+   *
+   * This is what makes the two guarantees hold. The amount is read from the
+   * payment rather than typed, so it cannot exceed what the society received;
+   * and the register knows whether a receipt was already produced, so a second
+   * one has to be asked for deliberately and prints as a duplicate.
+   */
+  function fillFrom(p) {
+    payment = p;
+    $("receiptNo").value = p.receiptNo;
+    $("amount").value = p.amount;
+    $("date").value = p.date;
+    if (p.name) $("name").value = p.name;
+    if (p.flat) $("flat").value = p.flat;
+    $("txn").value = p.reference || "";
+    setSendable(true);
+    draw();
+    note(
+      p.issued
+        ? "Receipt " + p.receiptNo + " was already issued" +
+          (p.issuedAt ? " on " + p.issuedAt.slice(0, 10) : "") +
+          ". Sending again prints a DUPLICATE."
+        : "Found " + p.receiptNo + " · Rs " + p.amount + " · " + p.date,
+      p.issued ? "bad" : "good",
+    );
+  }
+
+  $("cash").addEventListener("change", function () {
+    var cash = this.checked;
+    ["txn", "txnAmount"].forEach(function (id) { $(id).disabled = cash; });
+    // Cash has no payment to read from, so these become the volunteer's to
+    // fill — and the entry they create is what the register then holds.
+    ["amount", "date"].forEach(function (id) { $(id).readOnly = !cash; });
+    $("lookup").textContent = cash ? "Record cash" : "Look up";
+    clearPayment();
+    if (cash) {
+      $("date").value = new Date().toISOString().slice(0, 10);
+      note("Fill in the name and amount, then Record cash. The register gets the entry and the receipt number.");
+    } else {
+      note("Find the payment in the register. The receipt is written against it.");
+    }
+  });
+
+  $("lookup").addEventListener("click", function () {
+    if ($("cash").checked) return recordCash();
+
+    var ref = $("txn").value.trim();
+    if (ref.length < 4) { note("Enter at least the last 4 digits of the transaction ID.", "bad"); return; }
+
+    note("Looking…");
+    var q = "/api/receipts?ref=" + encodeURIComponent(ref);
+    var amt = $("txnAmount").value.replace(/[^0-9.]/g, "");
+    if (amt) q += "&amount=" + encodeURIComponent(amt);
+
+    fetch(q)
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (res.j.ambiguous) {
+          note(res.j.error, "bad");
+          clearPayment();
+          return;
+        }
+        if (!res.ok || !res.j.payment) { note(res.j.error || "Not found.", "bad"); clearPayment(); return; }
+        fillFrom(res.j.payment);
+      })
+      .catch(function () {
+        // Strict on purpose: a receipt written without checking could carry the
+        // wrong amount or duplicate one already given, and neither shows up
+        // until someone audits.
+        note("Can't reach the register. A receipt can only be written against a payment we can verify.", "bad");
+        clearPayment();
+      });
+  });
+
+  function recordCash() {
+    var amount = Number($("amount").value.replace(/[^0-9.]/g, ""));
+    if (!$("name").value.trim()) { note("Whose contribution is it?", "bad"); return; }
+    if (!amount) { note("How much was handed over?", "bad"); return; }
+
+    note("Recording…");
+    fetch("/api/receipts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cash: true,
+        name: $("name").value.trim(),
+        flat: $("flat").value.trim(),
+        mobile: $("mobile").value.trim(),
+        amount: amount,
+        date: $("date").value,
+      }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { note(res.j.error || "Could not record it.", "bad"); return; }
+        fillFrom(res.j.payment);
+        note("Recorded as " + res.j.payment.receiptNo + ". It is on the donations list now.", "good");
+      })
+      .catch(function () { note("Can't reach the register.", "bad"); });
+  }
+
+  /* Marks the receipt as produced. Called the first time it is sent or saved. */
+  function recordIssue() {
+    if (!payment) return Promise.resolve();
+    return fetch("/api/receipts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: payment.id,
+        name: $("name").value.trim(),
+        flat: $("flat").value.trim(),
+        mobile: $("mobile").value.trim(),
+        reissue: payment.issued,
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j.payment) payment = j.payment; })
+      .catch(function () { /* the receipt is already in the donor's hands */ });
+  }
+
   $("shareImage").addEventListener("click", function () {
     // Built synchronously: see receiptFileNow. Anything async here and the tap
     // stops counting as user activation, which is what made the old version
     // send text alone.
     var file = receiptFileNow();
+    void recordIssue();
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       navigator.share({ files: [file], text: caption() }).catch(function (err) {
@@ -954,16 +1169,24 @@
     toast("This browser can't share — saved " + file.name + ", attach it in WhatsApp.");
   });
 
-  $("print").addEventListener("click", function () { window.print(); });
+  $("print").addEventListener("click", function () { void recordIssue(); window.print(); });
 
+  /*
+   * Clears the form for the next donor.
+   *
+   * It used to add one to the last receipt number, which is why every
+   * volunteer's device had to be given its own starting range or several would
+   * issue receipt 0001. Numbers come from the register now, assigned once per
+   * donation and frozen, so there is nothing left to count and nothing left to
+   * collide.
+   */
   $("next").addEventListener("click", function () {
-    $("receiptNo").value = nextReceiptNo($("receiptNo").value);
-    $("flat").value = "";
-    $("name").value = "";
-    $("amount").value = "";
-    $("mobile").value = "";
-    draw();
-    $("flat").focus();
+    ["txn", "txnAmount", "flat", "name", "mobile"].forEach(function (id) { $(id).value = ""; });
+    clearPayment();
+    $($("cash").checked ? "name" : "txn").focus();
+    note($("cash").checked
+      ? "Fill in the name and amount, then Record cash."
+      : "Find the payment in the register. The receipt is written against it.");
     toast("Ready for the next one.");
   });
 
@@ -1295,6 +1518,10 @@
   });
 
   restore();
+  // Nothing can be sent until a payment has been found or a cash entry made.
+  // The whole guarantee rests on that: a receipt exists because the register
+  // says the money does.
+  setSendable(false);
   draw();
   loadTemplate().then(function (img) { if (img) draw(); });
   loadStamp().then(function (img) { if (img) draw(); });
