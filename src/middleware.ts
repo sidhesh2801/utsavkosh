@@ -18,6 +18,9 @@ const PROTECTED = ["/receipt-generator.html", "/generator", "/food-counter"];
  * Closing the app for maintenance.
  *
  * Set MAINTENANCE=1 in Vercel and redeploy; unset it and redeploy to reopen.
+ * That closes it to everyone, the committee included. Add
+ * MAINTENANCE_ALLOW_COMMITTEE=1 if they should still get in.
+ *
  * Nothing else changes — the register lives in Supabase, and this only decides
  * whether the app will show it. Every donation, ledger entry, coupon and
  * receipt number is exactly where it was when the app comes back.
@@ -27,19 +30,31 @@ const PROTECTED = ["/receipt-generator.html", "/generator", "/food-counter"];
  */
 const CLOSED = process.env.MAINTENANCE === "1" || process.env.MAINTENANCE === "true";
 
-/** Reachable while closed, or the committee could not let themselves back in. */
-const ALWAYS_OPEN = [
-  "/maintenance.html",
-  "/generator-login",
-  "/api/generator-login",
-  "/api/session",
-];
+/**
+ * Whether a committee session may still pass while the app is closed.
+ *
+ * Off unless asked for. "Closed" should mean closed to everybody, including
+ * the person who closed it — a volunteer whose phone happens to hold a session
+ * from last week would otherwise see the app working, conclude the switch had
+ * failed, and go looking for a fault that is not there. Set
+ * MAINTENANCE_ALLOW_COMMITTEE=1 when the committee needs to keep entering cash
+ * behind a closed shopfront.
+ */
+const LET_COMMITTEE_IN =
+  process.env.MAINTENANCE_ALLOW_COMMITTEE === "1" ||
+  process.env.MAINTENANCE_ALLOW_COMMITTEE === "true";
+
+/** Reachable while closed, so the committee can sign in when allowed to. */
+const ALWAYS_OPEN = LET_COMMITTEE_IN
+  ? ["/maintenance.html", "/generator-login", "/api/generator-login", "/api/session"]
+  : ["/maintenance.html"];
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const signedIn = await isValidSessionToken(request.cookies.get(GENERATOR_COOKIE)?.value);
 
-  if (CLOSED && !signedIn && !ALWAYS_OPEN.some((p) => pathname.startsWith(p))) {
+  const passes = LET_COMMITTEE_IN && signedIn;
+  if (CLOSED && !passes && !ALWAYS_OPEN.some((p) => pathname.startsWith(p))) {
     // Rewritten, not redirected: the address the resident typed stays in the
     // bar, so reloading once the app reopens lands them where they meant to be.
     // 503 rather than 200 so search engines treat it as temporary and do not
