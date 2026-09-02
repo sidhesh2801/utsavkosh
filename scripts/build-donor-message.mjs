@@ -12,9 +12,10 @@
  * that disagrees with itself by the third. The database is the single source;
  * this only formats it.
  *
- * The QR entries carry no name and that is not a defect in this script: a UPI
- * QR payment reaches the society as a settlement from PhonePe, so neither the
- * bank nor the export names the payer. They are listed by amount, date and the
+ * The QR entries carry no name and that is not a defect in this script: a QR
+ * payment reaches the society as one settlement for the day rather than a list
+ * of who paid, whatever app the resident used, so neither the bank nor the
+ * merchant export names them. They are listed by amount, date and the
  * last four digits of the transaction id, which is enough for a resident to
  * recognise their own payment and claim it. The CSV is the committee's side of
  * that conversation — one row per unnamed payment, waiting for a name.
@@ -124,20 +125,25 @@ named.forEach((d, i) => {
 
 p(
   "",
-  "🙏 *विशेष सूचना – PhonePe QR द्वारे प्राप्त देणग्या*",
-  "PhonePe QR स्कॅन करून केलेल्या देणग्यांच्या अहवालात देणगीदाराचे नाव येत नाही — फक्त ट्रान्झॅक्शन ID मिळते. त्यामुळे खालील नोंदी नावाशिवाय आहेत. ही कोणाचीही उपेक्षा नाही 🙏",
-  "कृपया आपली रक्कम, तारीख आणि ट्रान्झॅक्शन ID चे शेवटचे 4 अंक पाहून आपली नोंद ओळखा, आणि आपले *नाव व फ्लॅट क्रमांक* आम्हाला WhatsApp करा. आपली पावती तयार करून दिली जाईल आणि पुढील यादीत आपले नाव नक्की समाविष्ट केले जाईल.",
+  "🙏 *विशेष सूचना – QR द्वारे प्राप्त देणग्या*",
+  "QR स्कॅन करून केलेल्या देणग्या सोसायटीला दिवसभराच्या एकत्रित रकमेच्या स्वरूपात मिळतात — पैसे कोणत्याही ॲपवरून पाठवले असले तरी देणगीदाराचे नाव कळत नाही, फक्त ट्रान्झॅक्शन ID मिळते. त्यामुळे खालील नोंदी नावाशिवाय आहेत. ही कोणाचीही उपेक्षा नाही 🙏",
+  "आपली *पावती लगेच डाउनलोड करता येते* — देणगी यादीत आपली नोंद शोधा आणि त्या ओळीवरील *Receipt* वर टॅप करा. आपले नाव यादीत यावे असे वाटत असल्यास, आपली रक्कम, तारीख आणि ट्रान्झॅक्शन ID सोबत *नाव व फ्लॅट क्रमांक* आम्हाला WhatsApp करा.",
   '_(ट्रान्झॅक्शन ID आपल्या PhonePe / GPay / बँक ॲपमध्ये "UPI transaction ID" किंवा "UTR" या नावाने दिसते.)_',
   "",
-  "🙏 *विशेष सूचना – PhonePe QR से प्राप्त दान*",
-  "PhonePe QR स्कैन करके किए गए दान की रिपोर्ट में दानदाता का नाम नहीं आता — केवल ट्रांज़ैक्शन ID मिलती है। इसीलिए नीचे की प्रविष्टियाँ बिना नाम के हैं। यह किसी की अनदेखी नहीं है 🙏",
-  "कृपया अपनी राशि, तारीख और ट्रांज़ैक्शन ID के अंतिम 4 अंक देखकर अपनी प्रविष्टि पहचानें, और अपना *नाम व फ्लैट नंबर* हमें WhatsApp करें। आपकी रसीद बनाकर दी जाएगी और अगली सूची में आपका नाम अवश्य जोड़ा जाएगा।",
+  "🙏 *विशेष सूचना – QR से प्राप्त दान*",
+  "QR स्कैन करके किए गए दान सोसायटी को दिनभर की एकमुश्त राशि के रूप में मिलते हैं — पैसे किसी भी ऐप से भेजे हों, दानदाता का नाम नहीं आता, केवल ट्रांज़ैक्शन ID मिलती है। इसीलिए नीचे की प्रविष्टियाँ बिना नाम के हैं। यह किसी की अनदेखी नहीं है 🙏",
+  "आपकी *रसीद तुरंत डाउनलोड की जा सकती है* — दान सूची में अपनी प्रविष्टि ढूँढ़ें और उस पंक्ति पर *Receipt* दबाएँ। यदि आप चाहते हैं कि सूची में आपका नाम आए, तो अपनी राशि, तारीख और ट्रांज़ैक्शन ID के साथ *नाम व फ्लैट नंबर* हमें WhatsApp करें।",
   '_(ट्रांज़ैक्शन ID आपकी PhonePe / GPay / बैंक ऐप में "UPI transaction ID" या "UTR" के नाम से दिखती है।)_',
   "",
-  "🙏 *Special Notice – Donations received via PhonePe QR*",
-  "Donations made by scanning the PhonePe QR do not carry the donor's name in the report — only a transaction ID is available. That is why the entries below appear without names. No one is being overlooked 🙏",
-  "Please identify your entry from the amount, date and the last 4 digits of the transaction ID, and WhatsApp us your *name and flat number*. We will issue your receipt and your name will certainly be added to the next list.",
+  "🙏 *Special Notice – Donations received by QR*",
+  "Donations made by scanning the QR reach the society as a single settlement for the day rather than as a list of who paid — whichever app the money was sent from, only a transaction ID comes through. That is why the entries below appear without names. No one is being overlooked 🙏",
+  "You can *download your receipt straight away* — find your entry in the donations list and tap *Receipt* on that row. If you would also like your name on the list, WhatsApp us your *name and flat number* along with the amount, date and transaction ID.",
   '_(The transaction ID appears in your PhonePe / GPay / bank app as "UPI transaction ID" or "UTR".)_',
+  "",
+  // One line for all three languages: a URL reads the same in each, and
+  // repeating it three times is three chances to mistype it.
+  "🧾 देणगी यादी / दान सूची / Donations list:",
+  "https://utsav-reciept-generator.vercel.app/donations",
   "",
 );
 
@@ -152,7 +158,7 @@ anon.forEach((d, i) => {
 p(
   "",
   `नावासह देणगी / नामसहित दान / Donations with names: *${money(total(named))}* (${named.length})`,
-  `PhonePe QR देणगी / PhonePe QR दान / PhonePe QR donations: *${money(total(anon))}* (${anon.length})`,
+  `QR देणगी / QR दान / QR donations: *${money(total(anon))}* (${anon.length})`,
   `आतापर्यंत एकूण प्राप्त देणगी / अब तक कुल प्राप्त दान / Total received so far: *${money(total(data))}*`,
   "",
   "🙏 सर्व देणगीदारांचे खूप खूप आभार.",

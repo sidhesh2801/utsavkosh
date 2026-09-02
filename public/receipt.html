@@ -75,9 +75,11 @@
  *
  * Public, because everything on it is already on that list — the receipt only
  * arranges it onto the society's artwork. It exists because most QR
- * contributions arrive with no payer name: rather than the committee chasing a
- * hundred and sixty people to ask who they are, each donor recognises their own
- * transaction id and takes their own receipt.
+ * contributions arrive with no payer name: a QR payment reaches the society as
+ * one settlement for the day rather than a list of who paid, whatever app the
+ * resident used. Rather than the committee chasing a hundred and sixty people
+ * to ask who they are, each donor recognises their own transaction id and takes
+ * their own receipt.
  *
  * Self-contained rather than sharing code with receipt-generator.html. The
  * layout constants below are mirrored from that file and the two must be
@@ -355,10 +357,10 @@
       (d.reference ? " · payment <b>" + d.reference + "</b>" : "") +
       (d.name
         ? ""
-        : "<br />No name is shown because this came in by PhonePe QR, and PhonePe " +
-          "does not pass the payer's name to the society \u2014 the bank receives one " +
-          "settlement for the day, not a list of who paid. The transaction ID above " +
-          "is what makes this receipt yours.");
+        : "<br />No name is shown because this was paid by scanning the QR code. A QR " +
+          "payment reaches the society as a single settlement for the day rather than " +
+          "as a list of who paid, whichever app it was sent from \u2014 so the register " +
+          "holds the transaction ID and no name. That ID is what makes this receipt yours.");
 
     $("save").addEventListener("click", function () {
       var f = fileNow(d);
