@@ -353,8 +353,12 @@
     $("meta").innerHTML =
       "Receipt <b>" + d.receiptNo + "</b> · " + prettyDate(d.date) +
       (d.reference ? " · payment <b>" + d.reference + "</b>" : "") +
-      (d.name ? "" : "<br />This contribution came in by QR and carries no name. " +
-        "If it is yours, tell the committee your name and flat and it will be added.");
+      (d.name
+        ? ""
+        : "<br />No name is shown because this came in by PhonePe QR, and PhonePe " +
+          "does not pass the payer's name to the society \u2014 the bank receives one " +
+          "settlement for the day, not a list of who paid. The transaction ID above " +
+          "is what makes this receipt yours.");
 
     $("save").addEventListener("click", function () {
       var f = fileNow(d);
