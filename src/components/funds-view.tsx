@@ -432,9 +432,15 @@ function DonationsTab({
           ]}
           rows={csvRows}
         />
+        {/* The Ledger tab has always offered a way in when signed out; this one
+            showed nothing, so a committee member looking for "Add donation"
+            found an empty corner and no clue that a sign-in was what was
+            missing. */}
         <div className="ml-auto">
           {committee.authenticated ? (
             <AddDonationButton onSaved={() => window.location.reload()} />
+          ) : committee.checked ? (
+            <CommitteeSignInHint next="/donations" />
           ) : null}
         </div>
       </div>

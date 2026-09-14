@@ -35,13 +35,20 @@ export function useCommitteeSession(): { authenticated: boolean; checked: boolea
   return state;
 }
 
-/** Sign-in prompt for residents who land on the ledger wanting to add to it. */
-export function CommitteeSignInHint() {
+/**
+ * Sign-in prompt for a committee member who came to add something.
+ *
+ * Takes where to return to, because it sent everyone to the ledger — so
+ * signing in from the donations list landed you on a different page than the
+ * one you were trying to add to.
+ */
+export function CommitteeSignInHint({ next = "/ledger" }: { next?: string }) {
+  const what = next === "/donations" ? "Recording a contribution" : "Adding to the ledger";
   return (
     <p className="text-xs leading-relaxed text-ink-faint">
-      Adding to the ledger is for the committee.{" "}
+      {what} is for the committee.{" "}
       <a
-        href="/generator-login?next=/ledger"
+        href={`/generator-login?next=${encodeURIComponent(next)}`}
         className="text-brand underline decoration-brand/30 underline-offset-2"
       >
         Sign in
