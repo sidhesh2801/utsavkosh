@@ -27,8 +27,20 @@ const PROTECTED = ["/receipt-generator.html", "/generator", "/food-counter"];
  *
  * Deliberately a redeploy rather than something that can be toggled live: a
  * public ledger going dark is not a thing that should be one stray click away.
+ * The value is read per request though, so the redeploy only has to happen —
+ * it does not also have to be a cache-busting one.
  */
-const CLOSED = process.env.MAINTENANCE === "1" || process.env.MAINTENANCE === "true";
+/**
+ * Read per request, not once when the module loads.
+ *
+ * At module scope the value is fixed when the bundle is built, so removing the
+ * variable in Vercel and pressing Redeploy changed nothing: the redeploy reused
+ * the cached build with the old value compiled in, and the app stayed shut with
+ * no setting left anywhere that explained why.
+ */
+function isClosed() {
+  return process.env.MAINTENANCE === "1" || process.env.MAINTENANCE === "true";
+}
 
 /**
  * Whether a committee session may still pass while the app is closed.
@@ -40,21 +52,26 @@ const CLOSED = process.env.MAINTENANCE === "1" || process.env.MAINTENANCE === "t
  * MAINTENANCE_ALLOW_COMMITTEE=1 when the committee needs to keep entering cash
  * behind a closed shopfront.
  */
-const LET_COMMITTEE_IN =
-  process.env.MAINTENANCE_ALLOW_COMMITTEE === "1" ||
-  process.env.MAINTENANCE_ALLOW_COMMITTEE === "true";
+function letsCommitteeIn() {
+  return (
+    process.env.MAINTENANCE_ALLOW_COMMITTEE === "1" ||
+    process.env.MAINTENANCE_ALLOW_COMMITTEE === "true"
+  );
+}
 
 /** Reachable while closed, so the committee can sign in when allowed to. */
-const ALWAYS_OPEN = LET_COMMITTEE_IN
-  ? ["/maintenance.html", "/generator-login", "/api/generator-login", "/api/session"]
-  : ["/maintenance.html"];
+function alwaysOpen() {
+  return letsCommitteeIn()
+    ? ["/maintenance.html", "/generator-login", "/api/generator-login", "/api/session"]
+    : ["/maintenance.html"];
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const signedIn = await isValidSessionToken(request.cookies.get(GENERATOR_COOKIE)?.value);
 
-  const passes = LET_COMMITTEE_IN && signedIn;
-  if (CLOSED && !passes && !ALWAYS_OPEN.some((p) => pathname.startsWith(p))) {
+  const passes = letsCommitteeIn() && signedIn;
+  if (isClosed() && !passes && !alwaysOpen().some((p) => pathname.startsWith(p))) {
     // Rewritten, not redirected: the address the resident typed stays in the
     // bar, so reloading once the app reopens lands them where they meant to be.
     // 503 rather than 200 so search engines treat it as temporary and do not
