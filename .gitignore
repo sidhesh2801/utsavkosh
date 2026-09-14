@@ -42,7 +42,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Screenshots dropped in for transcribing donor names. Working material, not
-# part of the app — and the folder has already collected a saved copy of
-# somebody's Gmail inbox, which must not reach a repository on GitHub.
+# Screenshots dropped in for transcribing donor names, and the ones already
+# read. Working material, not part of the app — and the inbox folder has
+# already collected a saved copy of somebody's Gmail, which must not reach a
+# repository on GitHub.
 /reciept-ss/
+/reciept-done/
