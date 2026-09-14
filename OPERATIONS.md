@@ -181,6 +181,19 @@ Numbering is per-device, so **give each volunteer a different starting range**
 does nothing until you redeploy — this cost an afternoon once, when a correctly
 saved key kept reading as absent.
 
+**And redeploy without the build cache.** Next compiles `process.env` values
+into the Edge bundle, so a redeploy that reuses the cache ships the old value:
+the setting is gone from every screen and the deployed app still behaves as
+though it were there. Untick *Use existing Build Cache*, or push a commit,
+which always builds clean. Both the maintenance switch and the committee
+password have failed this way.
+
+**There are two Vercel projects**, `utsav-receipt-generator` and `utsavkosh`,
+both deploying this repo and both pointing at the same database. Any
+environment change has to be made on both, or half the doors keep the old
+behaviour. The one residents use is `utsav-receipt-generator` — note that its
+domain carries the `reciept` typo while the project name does not.
+
 ---
 
 ## How the security actually works
