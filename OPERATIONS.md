@@ -11,14 +11,21 @@ Society: **Wellington — Pride World City**, Charholi Budruk, Pune.
 
 | | |
 |---|---|
-| The app | https://utsav-reciept-generator.vercel.app |
+| The app | https://utsavkosh.vercel.app |
 | Donations (public) | `/donations` |
 | Ledger (public) | `/ledger` |
 | Receipt generator | `/receipt-generator.html` — password |
 | Supabase project | `hnszgpoxxgpymybadcct` |
 
-The project name contains a typo (`reciept`). Renaming it changes the URL and
-breaks saved links, so it stays until someone decides to take that hit.
+The society uses **utsavkosh.vercel.app**. A second Vercel project,
+`utsav-receipt-generator`, serves the same repo against the same database at
+`utsav-reciept-generator.vercel.app` — note the `reciept` typo in that domain.
+It is the address that was shared first, so it is kept alive but paused; every
+link handed out from September 2026 uses utsavkosh.
+
+Two live copies is how the committee password once ended up changed on one and
+not the other. If both are running, every environment change has to be made
+twice.
 
 ---
 
@@ -163,6 +170,23 @@ and counts up per device.
 
 Numbering is per-device, so **give each volunteer a different starting range**
 (1001, 2001, 3001…) or several will issue receipt 0001.
+
+---
+
+## Keeping it awake
+
+Supabase pauses a free project after about a week with no queries, and this
+app is quiet between festivals. It happened once: the site was closed for
+twelve days and the database was gone on return — nothing lost, but it needed
+a manual restore in the Supabase dashboard before anything worked.
+
+`vercel.json` runs a daily cron against `/api/health`, which counts a row and
+so keeps both Supabase and Vercel warm. The route is public and reports only
+that count. It answers 503 when the database is unreachable, so a sleeping
+project shows up to a monitor rather than to a resident.
+
+Cron runs on whichever Vercel project is live. If that project is ever paused,
+nothing pings, and the database will sleep again about a week later.
 
 ---
 

@@ -143,7 +143,7 @@ p(
   // One line for all three languages: a URL reads the same in each, and
   // repeating it three times is three chances to mistype it.
   "🧾 देणगी यादी / दान सूची / Donations list:",
-  "https://utsav-reciept-generator.vercel.app/donations",
+  "https://utsavkosh.vercel.app/donations",
   "",
 );
 
