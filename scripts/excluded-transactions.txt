@@ -39,3 +39,14 @@ T2608242255478689502210   # Rs 3,100
 360233400614              # the same three, by their bank UTR
 696016303926
 623637799830
+
+# --- Collected by Rohit and passed on, removed 14 Sep 2026 ----------------
+# On the committee's instruction: this money reached the society by another
+# route as well, so counting these three would count it twice. Both ids for
+# each, because the statement knows them by UTR and the export by T-id.
+T2608221410389327717267   # Rs 1,500  22 Aug
+110494998093
+T2608301606223504041784   # Rs 501    30 Aug
+110555318623
+T2608221629272975519842   # Rs 501    22 Aug
+110495841377
