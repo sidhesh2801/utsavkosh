@@ -382,7 +382,7 @@ export function AddDonationButton({ onSaved }: { onSaved: () => void }) {
   return (
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
-        Add cash donation
+        Add donation
       </Button>
       {open ? (
         <DonationSheet
@@ -405,6 +405,7 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const [wing, setWing] = useState("");
   const [flat, setFlat] = useState("");
   const [amount, setAmount] = useState("");
+  const [reference, setReference] = useState("");
   const [method, setMethod] = useState("cash");
   const [receivedAt, setReceivedAt] = useState(toDateInput(new Date().toISOString()));
   const [activityId, setActivityId] = useState(data.activities[0]?.id ?? "");
@@ -421,7 +422,7 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          donorName, wing, flat, amount: Number(amount), method,
+          donorName, wing, flat, amount: Number(amount), method, reference,
           receivedAt, activityId: activityId || null, isTenant,
         }),
       });
@@ -443,8 +444,8 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     <Sheet
       open
       onClose={onClose}
-      title="Record a cash contribution"
-      description="For money handed over in person. Anything paid by UPI arrives through the daily statement import."
+      title="Record a contribution"
+      description="For money handed over in person, or a payment the statement import will not pick up. Give the transaction ID where there is one."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -517,6 +518,25 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
             />
           </Field>
         </div>
+
+        {/* Every other contribution carries one, and it is what the receipt
+            prints and what a donor recognises their own payment by. Blank for
+            cash, which genuinely has no reference — that is the only case. */}
+        <Field
+          label="Transaction ID / UTR"
+          hint={
+            method === "cash"
+              ? "Cash has none — leave it blank."
+              : "From the payment. It goes on the receipt and prevents a double entry."
+          }
+        >
+          <input
+            className="field"
+            value={reference}
+            onChange={(e) => setReference(e.target.value.trim())}
+            placeholder={method === "cash" ? "—" : "e.g. 128286391110"}
+          />
+        </Field>
 
         <Field label="For which activity">
           <select
