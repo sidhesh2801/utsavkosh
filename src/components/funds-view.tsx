@@ -435,19 +435,24 @@ function DonationsTab({
         <Card className="overflow-x-auto">
           {/* A table rather than cards: with a hundred entries the point is
               scanning down one column, which cards make impossible. */}
-          <table className="w-full min-w-[46rem] text-left text-[0.8125rem]">
+          {/* Receipt second and the reference third: the two things a resident
+              comes here for. Both used to sit at the far right, behind a
+              sideways scroll nobody makes.
+
+              Narrower than it was, because "Towards" and "Status" are gone.
+              Towards named the festival on every row and the society runs one
+              at a time, so it repeated itself 276 times while pushing the
+              useful columns off a phone. It stays in the CSV, where an archive
+              wants it. */}
+          <table className="w-full min-w-[38rem] text-left text-[0.8125rem]">
             <thead>
               <tr className="border-b border-line text-[0.6875rem] uppercase tracking-[0.05em] text-ink-faint">
-                {/* Receipt second, not last. It is the one thing a resident
-                    comes here to do, and at the far right of a table this wide
-                    it sat behind a sideways scroll nobody makes. */}
                 <th className="px-4 py-2.5 font-semibold">Date</th>
                 <th className="px-4 py-2.5 font-semibold">Receipt</th>
+                <th className="px-4 py-2.5 font-semibold">Transaction ID</th>
                 <th className="px-4 py-2.5 font-semibold">Name</th>
                 <th className="px-4 py-2.5 font-semibold">Flat no.</th>
                 <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
-                <th className="px-4 py-2.5 font-semibold">Towards</th>
-                <th className="px-4 py-2.5 font-semibold">Transaction ID</th>
                 {canCollect ? <th className="px-4 py-2.5 font-semibold" /> : null}
               </tr>
             </thead>
@@ -476,6 +481,13 @@ function DonationsTab({
                       <span className="ml-1.5 text-[0.6875rem] text-credit">sent</span>
                     ) : null}
                   </td>
+                  {/* The UPI reference or PhonePe id, in full. Two thirds of
+                      the contributions carry no name, so for those this is the
+                      only thing a donor can recognise their own line by — and
+                      half a reference is no use for that. */}
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-[0.6875rem] text-ink-faint">
+                    {d.reference || "—"}
+                  </td>
                   <td className="px-4 py-2.5 text-ink">
                     {d.donorName}
                     {d.isTenant ? (
@@ -487,18 +499,6 @@ function DonationsTab({
                   </td>
                   <td className="tnum whitespace-nowrap px-4 py-2.5 text-right font-medium text-ink">
                     {money(d.amount)}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-soft">
-                    {d.activityId
-                      ? (activityById.get(d.activityId)?.title ?? "—")
-                      : "General fund"}
-                  </td>
-                  {/* The UPI reference or PhonePe id, in full. Two thirds of
-                      the contributions carry no name, so for those this is the
-                      only thing a donor can recognise their own line by — and
-                      half a reference is no use for that. */}
-                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-[0.6875rem] text-ink-faint">
-                    {d.reference || "—"}
                   </td>
                   {canCollect ? (
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
