@@ -41,9 +41,17 @@ T2608242255478689502210   # Rs 3,100
 623637799830
 
 # --- Collected by Rohit and passed on, removed 14 Sep 2026 ----------------
-# On the committee's instruction: this money reached the society by another
-# route as well, so counting these three would count it twice. Both ids for
-# each, because the statement knows them by UTR and the export by T-id.
+# Residents paid Rohit Joshi directly; he forwarded the money to the society
+# QR, which is where these three came from. The four underlying donations are
+# recorded under their own donors' names, so keeping these as well would count
+# the same money twice. Both ids for each, because the statement knows a
+# payment by its UTR and the merchant export by its T-id.
+#
+# The two sides do not match, and that is not an error to chase:
+#   forwarded to the society   1,500 + 501 + 501  =  2,502
+#   given by the four donors   501 + 501 + 1,001 + 501  =  2,504
+# Rohit sent 1,500 for what was 1,502 and rounded down. The register credits
+# each donor what they gave; the bank is 2 short. Confirmed with the committee.
 T2608221410389327717267   # Rs 1,500  22 Aug
 110494998093
 T2608301606223504041784   # Rs 501    30 Aug
