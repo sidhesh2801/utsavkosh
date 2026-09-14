@@ -119,6 +119,35 @@ The export reconciles against the bank by settlement, one day later: completed
 payments dated the 23rd equalled the settlement received on the 24th, to the
 rupee. That check is worth running whenever a total looks wrong.
 
+### Naming a QR contribution
+
+The merchant export has twenty-one columns and the payer is not one of them —
+the only names in it are `Shivanu`, the society's own account, and
+`Terminal 1` to `Terminal 10`. So every QR row imports as
+`Anonymous (QR payment)`, and no care with the import can change that.
+
+**The PhonePe app does show the payer.** Open a transaction in PhonePe Business
+and the name is on screen next to the UTR. So the names exist; they just have
+to be read off and matched back.
+
+Screenshot the transaction list, type or paste the lines into a file, and:
+
+```bash
+node --env-file=.env.local scripts/name-donors.mjs ~/Downloads/names.txt          # report
+node --env-file=.env.local scripts/name-donors.mjs ~/Downloads/names.txt --write
+```
+
+A line needs a 12-digit UTR and a name, in either order. Pasting the app's own
+messy line works — `09:15PM • Anita Sharma... UTR: 660917288476 | QR ₹1,100
+Settled` reads as *Anita Sharma*, because the amount, the time and the words
+the app prints around a payment are stripped. It matches by UTR, translating
+to the PhonePe transaction id through the export where a row was stored under
+that instead.
+
+It will not overwrite a name already there. A row named from the bank statement
+was named by the bank; a screenshot read in a hurry is not a reason to replace
+it, so those are reported for a person to settle. Then rebuild what people read.
+
 ### Deleting a donation — it comes back unless you say so
 
 A removed row is recorded nowhere, so the next import puts it straight back.
@@ -275,6 +304,8 @@ Enforced by Postgres, not the browser:
 scripts/import-donations.mjs    statement → report → SQL or direct write
 scripts/import-phonepe.mjs      PhonePe merchant export → report → write
 scripts/build-donor-message.mjs register → WhatsApp list + QR claim sheet
+scripts/name-donors.mjs         UTR + name from a screenshot → names on rows
+scripts/backup.mjs              the whole register to ~/Downloads, CSV + JSON
 scripts/excluded-transactions.txt  payments the committee removed for good
 public/receipt-generator.html   the generator: one self-contained file
 src/app/api/                    committee-only writes, session checks
