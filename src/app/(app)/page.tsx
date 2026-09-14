@@ -7,6 +7,7 @@ import { fundSummary } from "@/lib/finance";
 import { money } from "@/lib/format";
 import { Card } from "@/components/ui";
 import { FestivalTiles } from "@/components/festival-tiles";
+import { useCommitteeSession } from "@/components/ledger-admin";
 
 /**
  * The home page: what the society holds, which festivals are running, and the
@@ -23,6 +24,7 @@ import { FestivalTiles } from "@/components/festival-tiles";
  */
 export default function HomePage() {
   const { data } = useSociety();
+  const committee = useCommitteeSession();
   const summary = useMemo(() => fundSummary(data.donations, data.expenses), [data]);
 
   return (
@@ -90,11 +92,12 @@ export default function HomePage() {
             </>
           }
         />
+        {committee.authenticated ? (
         <Option
           href="/food-coupon"
           title="Food coupon"
           description="Register your flat and get a QR for the counter."
-          meta="No login needed"
+          meta="Committee"
           icon={
             <>
               <path d="M4 4v6a3 3 0 0 0 6 0V4M7 10v10" />
@@ -103,6 +106,8 @@ export default function HomePage() {
             </>
           }
         />
+        ) : null}
+        {committee.authenticated ? (
         <Option
           href="/receipt-generator.html"
           external
@@ -116,6 +121,7 @@ export default function HomePage() {
             </>
           }
         />
+        ) : null}
         </div>
       </div>
     </div>

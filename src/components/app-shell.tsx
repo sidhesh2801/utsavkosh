@@ -15,6 +15,8 @@ interface NavItem {
   short: string;
   icon: ReactNode;
   adminOrVolunteerOnly?: boolean;
+  /** Hidden unless a committee session is present. */
+  committeeOnly?: boolean;
   /**
    * Rendered as a plain anchor rather than a client route. The generator is a
    * static file behind middleware, so it needs a full page load.
@@ -39,9 +41,11 @@ const icon = (path: ReactNode) => (
 );
 
 /**
- * Four destinations, and no more: the home page and the three things the
- * committee asked for. Anything else the app can do is reachable from within
- * those, and a volunteer at a doorstep should not have to read a menu.
+ * The home page, the two public registers, and the two committee tools.
+ *
+ * Residents see three tabs. Food coupons and the receipt generator are the
+ * committee's work, not theirs, and a resident offered a menu item that asks
+ * for a password has been shown a locked door for no reason.
  */
 const NAV: NavItem[] = [
   {
@@ -76,6 +80,7 @@ const NAV: NavItem[] = [
     href: "/food-coupon",
     label: "Food coupon",
     short: "Food",
+    committeeOnly: true,
     icon: icon(
       <>
         <path d="M4 4v6a3 3 0 0 0 6 0V4M7 10v10" />
@@ -89,11 +94,7 @@ const NAV: NavItem[] = [
     label: "Write a receipt",
     short: "Receipt",
     external: true,
-    /**
-     * Not gated on being signed into the app. The generator has its own
-     * password, and a volunteer given only that password never signs in here —
-     * gating the link would leave them no way to reach it.
-     */
+    committeeOnly: true,
     icon: icon(
       <>
         <path d="M4 5.5h11l5 5V21H4z" />
@@ -148,7 +149,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (!session && needsLogin) return null;
 
-  const items = NAV.filter((n) => !n.adminOrVolunteerOnly || canCollect);
+  // Hidden rather than shown-and-refused. A volunteer who has only the
+  // generator password still reaches it by its own URL, which is how it was
+  // always handed out.
+  const items = NAV.filter(
+    (n) =>
+      (!n.adminOrVolunteerOnly || canCollect) &&
+      (!n.committeeOnly || committee.authenticated),
+  );
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 

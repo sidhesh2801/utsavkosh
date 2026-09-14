@@ -126,20 +126,13 @@ export function FundsView({
         }
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Three, not four. "Awaiting handover" belonged to a collection flow
+          that was never used — every one of the 276 contributions is verified,
+          so the tile read zero and the filter matched nothing. */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatTile label="Collected" value={money(summary.collected)} tone="credit" />
         <StatTile label="Spent" value={money(summary.spent)} tone="debit" />
         <StatTile label="Balance in hand" value={money(summary.balance)} tone="brand" />
-        <StatTile
-          label="Awaiting handover"
-          value={money(summary.pendingCollection)}
-          tone={summary.pendingCollection > 0 ? "warn" : "neutral"}
-          hint={
-            summary.pendingCount
-              ? `${summary.pendingCount} entries not yet counted in the balance`
-              : "All collections accounted for"
-          }
-        />
       </div>
 
       <div
@@ -347,7 +340,6 @@ function DonationsTab({
   const { data } = useSociety();
   const [query, setQuery] = useState("");
   const [activityFilter, setActivityFilter] = useState(pinned ?? "all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "verified" | "pending">("all");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Donation | null>(null);
 
@@ -358,7 +350,6 @@ function DonationsTab({
         if (activityFilter === "general" && d.activityId !== null) return false;
         if (activityFilter !== "all" && activityFilter !== "general" && d.activityId !== activityFilter)
           return false;
-        if (statusFilter !== "all" && d.status !== statusFilter) return false;
         if (!q) return true;
         return (
           d.donorName.toLowerCase().includes(q) ||
@@ -367,7 +358,7 @@ function DonationsTab({
         );
       })
       .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
-  }, [data.donations, query, activityFilter, statusFilter]);
+  }, [data.donations, query, activityFilter]);
 
   const total = filtered.reduce((t, d) => t + d.amount, 0);
 
@@ -382,7 +373,6 @@ function DonationsTab({
     methodLabel(d.method),
     d.reference ?? "",
     d.activityId ? (activityById.get(d.activityId)?.title ?? "") : "General fund",
-    d.status === "verified" ? "Verified" : "Awaiting handover",
   ]);
 
   return (
@@ -413,22 +403,12 @@ function DonationsTab({
             </option>
           ))}
         </select>
-        <select
-          className="field w-auto"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          aria-label="Filter by status"
-        >
-          <option value="all">All entries</option>
-          <option value="verified">Verified only</option>
-          <option value="pending">Awaiting handover</option>
-        </select>
         <ExportCsv
           label="Download CSV"
           kind="donations"
           headers={[
             "Receipt no.", "Date", "Name", "Flat", "Owner/Tenant",
-            "Amount (INR)", "Method", "Transaction ID", "Towards", "Status",
+            "Amount (INR)", "Method", "Transaction ID", "Towards",
           ]}
           rows={csvRows}
         />
@@ -458,14 +438,16 @@ function DonationsTab({
           <table className="w-full min-w-[46rem] text-left text-[0.8125rem]">
             <thead>
               <tr className="border-b border-line text-[0.6875rem] uppercase tracking-[0.05em] text-ink-faint">
+                {/* Receipt second, not last. It is the one thing a resident
+                    comes here to do, and at the far right of a table this wide
+                    it sat behind a sideways scroll nobody makes. */}
                 <th className="px-4 py-2.5 font-semibold">Date</th>
+                <th className="px-4 py-2.5 font-semibold">Receipt</th>
                 <th className="px-4 py-2.5 font-semibold">Name</th>
                 <th className="px-4 py-2.5 font-semibold">Flat no.</th>
                 <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
                 <th className="px-4 py-2.5 font-semibold">Towards</th>
                 <th className="px-4 py-2.5 font-semibold">Transaction ID</th>
-                <th className="px-4 py-2.5 font-semibold">Status</th>
-                <th className="px-4 py-2.5 font-semibold">Receipt</th>
                 {canCollect ? <th className="px-4 py-2.5 font-semibold" /> : null}
               </tr>
             </thead>
@@ -474,40 +456,6 @@ function DonationsTab({
                 <tr key={d.id} className="align-top">
                   <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
                     {shortDate(d.receivedAt)}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink">
-                    {d.donorName}
-                    {d.isTenant ? (
-                      <span className="ml-1.5 text-[0.6875rem] text-ink-faint">tenant</span>
-                    ) : null}
-                  </td>
-                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
-                    {d.wing || d.flat ? flatLabel(d.wing, d.flat) : "—"}
-                  </td>
-                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-right font-medium text-ink">
-                    {money(d.amount)}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-soft">
-                    {d.activityId
-                      ? (activityById.get(d.activityId)?.title ?? "—")
-                      : "General fund"}
-                  </td>
-                  {/* The UPI reference or PhonePe id. It is how a resident
-                      recognises their own line — half the QR contributions
-                      carry no name, so this is the only thing that does. */}
-                  {/* In full, not abbreviated: it is what a donor matches
-                      against their own payment app, and half of it is no use
-                      for that. The table scrolls sideways rather than the
-                      reference being cut. */}
-                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-[0.6875rem] text-ink-faint">
-                    {d.reference || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5">
-                    {d.status === "verified" ? (
-                      <span className="text-credit">Verified</span>
-                    ) : (
-                      <span className="text-warn">Awaiting handover</span>
-                    )}
                   </td>
                   {/* Every donation has a receipt number the moment its row
                       exists — the database assigns one by trigger — so the
@@ -527,6 +475,30 @@ function DonationsTab({
                     {d.receiptSentAt ? (
                       <span className="ml-1.5 text-[0.6875rem] text-credit">sent</span>
                     ) : null}
+                  </td>
+                  <td className="px-4 py-2.5 text-ink">
+                    {d.donorName}
+                    {d.isTenant ? (
+                      <span className="ml-1.5 text-[0.6875rem] text-ink-faint">tenant</span>
+                    ) : null}
+                  </td>
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
+                    {d.wing || d.flat ? flatLabel(d.wing, d.flat) : "—"}
+                  </td>
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-right font-medium text-ink">
+                    {money(d.amount)}
+                  </td>
+                  <td className="px-4 py-2.5 text-ink-soft">
+                    {d.activityId
+                      ? (activityById.get(d.activityId)?.title ?? "—")
+                      : "General fund"}
+                  </td>
+                  {/* The UPI reference or PhonePe id, in full. Two thirds of
+                      the contributions carry no name, so for those this is the
+                      only thing a donor can recognise their own line by — and
+                      half a reference is no use for that. */}
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-[0.6875rem] text-ink-faint">
+                    {d.reference || "—"}
                   </td>
                   {canCollect ? (
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
