@@ -138,10 +138,16 @@ swiftc -O scripts/ocr-screenshots.swift -o /tmp/ocr
 /tmp/ocr reciept-ss/*.jpeg > /tmp/raw.txt
 ```
 
-Pair each `HH:MMam • Name` line with the `UTR: …` line under it, drop any whose
-payer is masked, and feed the result to the matcher. Twenty-nine screenshots —
-163 payments — took seconds this way. Move them to `reciept-done/` afterwards,
-so whatever is left in `reciept-ss/` is what still needs doing.
+Then pair each name with the UTR beneath it and feed the result to the matcher:
+
+```bash
+python3 scripts/read-screenshots.py /tmp/raw.txt > /tmp/names.txt
+node --env-file=.env.local scripts/name-donors.mjs /tmp/names.txt --write
+```
+
+Thirty-three screenshots — 184 payments — took seconds this way. Move them to
+`reciept-done/` afterwards, so whatever is left in `reciept-ss/` is what still
+needs doing.
 
 Or type the lines into a file by hand:
 
@@ -288,10 +294,10 @@ Enforced by Postgres, not the browser:
 
 ## Current state
 
-- **276 donations, ₹1,96,033** for Janmashtami & Dahi Handi 2026.
-- 256 named, 20 still anonymous (₹21,494). The 20 are payments made from the
-  PhonePe app, which shows the payer as masked digits — `********7781` — so
-  there is no name to read even on screen.
+- **279 donations, ₹2,04,233** for Janmashtami & Dahi Handi 2026.
+- 273 named, 6 still anonymous (₹5,004). Those six were paid from the PhonePe
+  app, which shows the payer as masked digits — `********7781` — so there is
+  no name to read even on screen. That is the floor, not an outstanding task.
 - Five ₹1.00 entries are almost certainly QR tests. Kept, because they are real
   lines on the bank statement and the ledger has to reconcile with it.
 - `Harshad` appears twice (₹1,111 and ₹501, different days). Two people or one
@@ -321,6 +327,7 @@ scripts/build-donor-message.mjs register → WhatsApp list + QR claim sheet
 scripts/name-donors.mjs         UTR + name from a screenshot → names on rows
 scripts/ocr-screenshots.swift   macOS text recognition, so the screenshots
                                 need not be read by hand
+scripts/read-screenshots.py     that text → UTR-and-name lines
 scripts/backup.mjs              the whole register to ~/Downloads, CSV + JSON
 scripts/excluded-transactions.txt  payments the committee removed for good
 public/receipt-generator.html   the generator: one self-contained file
