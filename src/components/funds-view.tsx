@@ -12,7 +12,6 @@ import {
 } from "@/lib/finance";
 import { money, shortDate, methodLabel, humanise, flatLabel } from "@/lib/format";
 import { csvName, downloadCsv, toCsv } from "@/lib/csv";
-import { fundSummaryMessage } from "@/lib/messages";
 import {
   Badge,
   Button,
@@ -24,7 +23,6 @@ import {
   StatTile,
 } from "./ui";
 import { CategoryBars, MonthlyFlowChart } from "./charts";
-import { ShareButton } from "./share";
 import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
 import {
   AddDonationButton,
@@ -118,13 +116,9 @@ export function FundsView({
           subtitle ??
           "Who contributed, where every rupee went, and what is left. Open to all residents — no sign-in needed."
         }
-        actions={
-          <ShareButton
-            size="sm"
-            message={fundSummaryMessage(data.society, summary)}
-            label="Share statement"
-          />
-        }
+        /* No "Share statement" button. It sent total collected, total spent
+           and the balance in one WhatsApp message, to anybody who tapped it —
+           which undid hiding those figures from the page it sat on. */
       />
 
       {/* Residents see what came in; what went out is the committee's until
