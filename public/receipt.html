@@ -290,12 +290,21 @@
       ctx.fillText(label, W * SLOTS.receiptNo.x, H * (SLOTS.receiptNo.y + 0.036));
     }
 
+    /*
+     * The society's stamp, placed exactly as receipt-generator.html places it:
+     * centred on a point and tilted, not drawn from a corner. Drawn from the
+     * top-left it ran off the bottom of the sheet and looked like it had not
+     * been drawn at all — the two files must agree on this, and on SLOTS.
+     */
     if (stamp) {
       var size2 = H * 0.21;
       var k = size2 / Math.max(stamp.width, stamp.height);
+      var sw = stamp.width * k, sh = stamp.height * k;
       ctx.save();
       ctx.globalAlpha = 0.97;
-      ctx.drawImage(stamp, W * 0.62, H * 0.80, stamp.width * k, stamp.height * k);
+      ctx.translate(W * 0.785, H * 0.878);
+      ctx.rotate((-4 * Math.PI) / 180);
+      ctx.drawImage(stamp, -sw / 2, -sh / 2, sw, sh);
       ctx.restore();
     }
 
