@@ -137,6 +137,20 @@
 
   function groupIndian(n) { return Number(n).toLocaleString("en-IN"); }
 
+  /*
+   * "Shri/Smt." before the donor's name, as the committee's paper receipts do.
+   *
+   * Both, not one: the register holds a name and nothing else, and choosing
+   * between them would mean guessing someone's gender from their first name —
+   * wrong often enough to matter, and rude when it is. A few names already
+   * arrive carrying Mr or Ms from the payment app, and those keep their own.
+   */
+  function withTitle(name) {
+    if (!name) return "";
+    return /^(Mr|Mrs|Ms|Miss|Shri|Smt|Dr|Prof)\b\.?/i.test(name) ? name : "Shri/Smt. " + name;
+  }
+
+
   function prettyDate(iso) {
     if (!iso) return "";
     var d = new Date(iso + "T00:00:00");
@@ -266,7 +280,7 @@
 
     put(SLOTS.receiptNo, d.receiptNo);
     put(SLOTS.date, prettyDate(d.date));
-    put(SLOTS.flatName, [d.flat, d.name].filter(Boolean).join("  ·  "));
+    put(SLOTS.flatName, [d.flat, withTitle(d.name)].filter(Boolean).join("  ·  "));
     put(SLOTS.amount, d.amount ? groupIndian(d.amount) : "", 1.12);
 
     if (d.amount) {

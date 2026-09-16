@@ -152,7 +152,7 @@
   <h1>Seva Donation Receipt</h1>
   <p class="sub">
     Fill in what you have — every field is optional. The receipt updates as you type.
-    <span class="build">build v25 · receipts from the register</span>
+    <span class="build">build v26 · Shri/Smt.</span>
   </p>
 
   <div class="card scan">
@@ -300,6 +300,20 @@
   function groupIndian(n) {
     return Number(n).toLocaleString("en-IN");
   }
+
+  /*
+   * "Shri/Smt." before the donor's name, as the committee's paper receipts do.
+   *
+   * Both, not one: the register holds a name and nothing else, and choosing
+   * between them would mean guessing someone's gender from their first name —
+   * wrong often enough to matter, and rude when it is. A few names already
+   * arrive carrying Mr or Ms from the payment app, and those keep their own.
+   */
+  function withTitle(name) {
+    if (!name) return "";
+    return /^(Mr|Mrs|Ms|Miss|Shri|Smt|Dr|Prof)\b\.?/i.test(name) ? name : "Shri/Smt. " + name;
+  }
+
 
   /* ------------------------------------------------------------- drawing */
 
@@ -848,7 +862,7 @@
     return {
       receiptNo: $("receiptNo").value.trim(),
       date: $("date").value,
-      flatAndName: [flat, name].filter(Boolean).join("  ·  "),
+      flatAndName: [flat, withTitle(name)].filter(Boolean).join("  ·  "),
       amount: amount,
       society: $("society").value.trim(),
       name: name,
