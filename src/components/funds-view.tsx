@@ -122,23 +122,16 @@ export function FundsView({
            which undid hiding those figures from the page it sat on. */
       />
 
-      {/* Residents see what came in; what went out is the committee's until
-          the ledger is ready to be read — five of nine expenses still have no
-          bill against them, and a spending figure with nothing behind it
-          invites exactly the question it cannot answer. */}
-      <div
-        className={`mb-5 grid gap-3 ${
-          committee.authenticated ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1"
-        }`}
-      >
-        <StatTile label="Collected" value={money(summary.collected)} tone="credit" />
-        {committee.authenticated ? (
-          <>
-            <StatTile label="Spent" value={money(summary.spent)} tone="debit" />
-            <StatTile label="Balance in hand" value={money(summary.balance)} tone="brand" />
-          </>
-        ) : null}
-      </div>
+      {/* No figures at all for a resident — not spending, not the balance, and
+          not the total collected. They read the list of contributions; what it
+          adds up to is the committee's, on their instruction. */}
+      {committee.authenticated ? (
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <StatTile label="Collected" value={money(summary.collected)} tone="credit" />
+          <StatTile label="Spent" value={money(summary.spent)} tone="debit" />
+          <StatTile label="Balance in hand" value={money(summary.balance)} tone="brand" />
+        </div>
+      ) : null}
 
       <div
         role="tablist"
@@ -432,8 +425,14 @@ function DonationsTab({
 
       <p className="text-[0.8125rem] text-ink-soft">
         Showing <span className="tnum font-medium text-ink">{filtered.length}</span>{" "}
-        {filtered.length === 1 ? "entry" : "entries"} totalling{" "}
-        <span className="tnum font-medium text-ink">{money(total)}</span>
+        {filtered.length === 1 ? "entry" : "entries"}
+        {/* The sum only for the committee. Left in for everyone it would put
+            back the very figure the tiles above stopped showing. */}
+        {committee.authenticated ? (
+          <>
+            {" "}totalling <span className="tnum font-medium text-ink">{money(total)}</span>
+          </>
+        ) : null}
       </p>
 
       {filtered.length ? (
@@ -671,8 +670,14 @@ function ExpensesTab({ isAdmin, pinned }: { isAdmin: boolean; pinned?: string })
 
       <p className="text-[0.8125rem] text-ink-soft">
         Showing <span className="tnum font-medium text-ink">{filtered.length}</span>{" "}
-        {filtered.length === 1 ? "entry" : "entries"} totalling{" "}
-        <span className="tnum font-medium text-ink">{money(total)}</span>
+        {filtered.length === 1 ? "entry" : "entries"}
+        {/* The sum only for the committee. Left in for everyone it would put
+            back the very figure the tiles above stopped showing. */}
+        {committee.authenticated ? (
+          <>
+            {" "}totalling <span className="tnum font-medium text-ink">{money(total)}</span>
+          </>
+        ) : null}
       </p>
 
       {filtered.length ? (
