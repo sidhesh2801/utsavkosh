@@ -93,6 +93,7 @@ export function FundsView({
   activityId?: string;
 } = {}) {
   const { data, isAdmin, canCollect } = useSociety();
+  const committee = useCommitteeSession();
   const [tab, setTab] = useState<Tab>(only ?? "overview");
 
   const scoped = useMemo(() => {
@@ -126,13 +127,22 @@ export function FundsView({
         }
       />
 
-      {/* Three, not four. "Awaiting handover" belonged to a collection flow
-          that was never used — every one of the 276 contributions is verified,
-          so the tile read zero and the filter matched nothing. */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* Residents see what came in; what went out is the committee's until
+          the ledger is ready to be read — five of nine expenses still have no
+          bill against them, and a spending figure with nothing behind it
+          invites exactly the question it cannot answer. */}
+      <div
+        className={`mb-5 grid gap-3 ${
+          committee.authenticated ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1"
+        }`}
+      >
         <StatTile label="Collected" value={money(summary.collected)} tone="credit" />
-        <StatTile label="Spent" value={money(summary.spent)} tone="debit" />
-        <StatTile label="Balance in hand" value={money(summary.balance)} tone="brand" />
+        {committee.authenticated ? (
+          <>
+            <StatTile label="Spent" value={money(summary.spent)} tone="debit" />
+            <StatTile label="Balance in hand" value={money(summary.balance)} tone="brand" />
+          </>
+        ) : null}
       </div>
 
       <div
@@ -147,7 +157,9 @@ export function FundsView({
             ["donations", `Who contributed (${scoped.donations.length})`],
             ["expenses", `Where it went (${scoped.expenses.length})`],
           ] as const
-        ).map(([value, label]) => (
+        )
+          .filter(([value]) => value !== "expenses" || committee.authenticated)
+          .map(([value, label]) => (
           <button
             key={value}
             role="tab"

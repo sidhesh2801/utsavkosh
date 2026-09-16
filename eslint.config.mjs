@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Screenshots dropped in for reading donor names off. Not source, and a
+    // web page saved in there once brought its own minified JavaScript with
+    // it, which eslint then reported thirteen errors in.
+    "reciept-ss/**",
+    "reciept-done/**",
   ]),
 ]);
 

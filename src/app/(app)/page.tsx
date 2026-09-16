@@ -44,14 +44,20 @@ export default function HomePage() {
       <Card className="overflow-hidden">
         <div className="border-b border-line bg-brand-soft px-5 py-5">
           <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.06em] text-brand-ink/70">
-            Balance in hand · all festivals
+            {committee.authenticated ? "Balance in hand · all festivals" : "Collected · all festivals"}
           </p>
           <p className="tnum mt-1 text-[2.75rem] font-semibold leading-none tracking-[-0.02em] text-brand-ink">
-            {money(summary.balance)}
+            {money(committee.authenticated ? summary.balance : summary.collected)}
           </p>
-          <p className="tnum mt-2 text-[0.8125rem] leading-snug text-brand-ink/80">
-            {money(summary.collected)} collected · {money(summary.spent)} spent
-          </p>
+          {committee.authenticated ? (
+            <p className="tnum mt-2 text-[0.8125rem] leading-snug text-brand-ink/80">
+              {money(summary.collected)} collected · {money(summary.spent)} spent
+            </p>
+          ) : (
+            <p className="tnum mt-2 text-[0.8125rem] leading-snug text-brand-ink/80">
+              {summary.donationCount} contributions
+            </p>
+          )}
         </div>
         {summary.pendingCollection > 0 ? (
           <div className="border-b border-line px-5 py-3">
@@ -80,6 +86,7 @@ export default function HomePage() {
             </>
           }
         />
+        {committee.authenticated ? (
         <Option
           href="/ledger"
           title="Ledger"
@@ -92,6 +99,7 @@ export default function HomePage() {
             </>
           }
         />
+        ) : null}
         {committee.authenticated ? (
         <Option
           href="/food-coupon"

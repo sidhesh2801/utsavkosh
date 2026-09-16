@@ -69,6 +69,7 @@ const NAV: NavItem[] = [
     href: "/ledger",
     label: "Ledger",
     short: "Ledger",
+    committeeOnly: true,
     icon: icon(
       <>
         <path d="M5 3h14v18H5z" />
