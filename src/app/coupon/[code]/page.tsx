@@ -178,7 +178,7 @@ export default function CouponPage({ params }: { params: Promise<{ code: string 
           href="/food-counter"
           className="text-[0.8125rem] text-brand underline decoration-brand/30 underline-offset-2"
         >
-          {committee ? "Back to the counter" : "Committee sign in"}
+          {committee ? "Back to the counter" : "Admin sign in"}
         </a>
       </div>
     </Shell>

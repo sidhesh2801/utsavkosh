@@ -79,8 +79,8 @@ function Counter() {
   if (committee.checked && !committee.authenticated) {
     return (
       <EmptyState
-        title="Committee only"
-        description="Sign in with the same password as the receipt generator to run the counter."
+        title="Admin only"
+        description="Admin sign in to run the counter."
         action={
           <a
             href={`/generator-login?next=${encodeURIComponent(`/food-counter${scope}`)}`}

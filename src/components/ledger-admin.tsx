@@ -41,20 +41,19 @@ export function useCommitteeSession(): { authenticated: boolean; checked: boolea
  * Takes where to return to, because it sent everyone to the ledger — so
  * signing in from the donations list landed you on a different page than the
  * one you were trying to add to.
+ *
+ * It used to say "with the same password as the receipt generator", which only
+ * means anything to someone who already knows there is a receipt generator and
+ * that it has a password. To everyone else it was a puzzle in front of a door.
  */
 export function CommitteeSignInHint({ next = "/ledger" }: { next?: string }) {
-  const what = next === "/donations" ? "Recording a contribution" : "Adding to the ledger";
   return (
-    <p className="text-xs leading-relaxed text-ink-faint">
-      {what} is for the committee.{" "}
-      <a
-        href={`/generator-login?next=${encodeURIComponent(next)}`}
-        className="text-brand underline decoration-brand/30 underline-offset-2"
-      >
-        Sign in
-      </a>{" "}
-      with the same password as the receipt generator.
-    </p>
+    <a
+      href={`/generator-login?next=${encodeURIComponent(next)}`}
+      className="text-xs font-medium text-brand underline decoration-brand/30 underline-offset-2"
+    >
+      Admin sign in
+    </a>
   );
 }
 
