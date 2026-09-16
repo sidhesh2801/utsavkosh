@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       receiptNo: data.receipt_no,
       // The placeholder is not a name, and printing it on somebody's receipt
       // would be worse than leaving the line blank.
-      name: String(data.donor_name).includes("QR") ? "" : data.donor_name,
+      name: /^Anonymous\b/.test(String(data.donor_name)) ? "" : data.donor_name,
       flat: [data.wing, data.flat].filter(Boolean).join("-"),
       amount: Number(data.amount),
       method: data.method,

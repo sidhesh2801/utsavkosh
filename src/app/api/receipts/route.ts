@@ -55,9 +55,9 @@ function forGenerator(d: Row) {
   return {
     id: d.id,
     receiptNo: d.receipt_no,
-    // "Anonymous (QR payment)" is a placeholder, not a name — the generator
-    // should offer an empty box rather than print that on somebody's receipt.
-    name: d.donor_name.includes("QR") ? "" : d.donor_name,
+    // "Anonymous (…)" is a placeholder, not a name — the generator should
+    // offer an empty box rather than print that on somebody's receipt.
+    name: /^Anonymous\b/.test(d.donor_name) ? "" : d.donor_name,
     flat: [d.wing, d.flat].filter(Boolean).join("-"),
     amount: Number(d.amount),
     method: d.method,
@@ -296,7 +296,7 @@ export async function POST(request: Request) {
   // Only fills a blank. A receipt being written is not a reason to overwrite a
   // name the bank already gave us.
   const name = (body.name ?? "").trim();
-  if (name && row.donor_name.includes("QR")) patch.donor_name = name;
+  if (name && /^Anonymous\b/.test(row.donor_name)) patch.donor_name = name;
 
   const flat = (body.flat ?? "").trim();
   if (flat && !row.flat) {

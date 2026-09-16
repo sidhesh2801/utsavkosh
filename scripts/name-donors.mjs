@@ -150,7 +150,7 @@ if (error) {
 const byReference = new Map();
 for (const r of rows) if (r.reference) byReference.set(String(r.reference), r);
 
-const isAnon = (r) => String(r.donor_name).includes("QR");
+const isAnon = (r) => /^Anonymous\b/.test(String(r.donor_name));
 
 const toName = [], alreadyNamed = [], notFound = [];
 
@@ -210,7 +210,7 @@ for (const t of toName) {
 }
 
 const after = (await db.from("donations").select("donor_name, amount").limit(5000)).data ?? [];
-const anon = after.filter((r) => String(r.donor_name).includes("QR"));
+const anon = after.filter((r) => /^Anonymous\b/.test(String(r.donor_name)));
 console.log(`\n  named ${done}`);
 console.log(
   `  register: ${after.length} donations, ${after.length - anon.length} named, ` +

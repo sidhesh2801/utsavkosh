@@ -58,7 +58,14 @@ if (error) {
   process.exit(1);
 }
 
-const isQr = (d) => String(d.donor_name).includes("QR");
+/**
+ * No name was given for this contribution.
+ *
+ * Any "Anonymous (…)" placeholder, not just the QR one: cash handed over with
+ * only a flat number is unnamed too, and counting it among the named would
+ * overstate how much of the money can be attributed to a person.
+ */
+const isQr = (d) => /^Anonymous\b/.test(String(d.donor_name));
 const named = data.filter((d) => !isQr(d));
 const anon = data.filter(isQr);
 const total = (rows) => rows.reduce((t, r) => t + Number(r.amount), 0);
@@ -158,7 +165,7 @@ anon.forEach((d, i) => {
 p(
   "",
   `नावासह देणगी / नामसहित दान / Donations with names: *${money(total(named))}* (${named.length})`,
-  `QR देणगी / QR दान / QR donations: *${money(total(anon))}* (${anon.length})`,
+  `नावाशिवाय / बिना नाम / Without a name: *${money(total(anon))}* (${anon.length})`,
   `आतापर्यंत एकूण प्राप्त देणगी / अब तक कुल प्राप्त दान / Total received so far: *${money(total(data))}*`,
   "",
   "🙏 सर्व देणगीदारांचे खूप खूप आभार.",
