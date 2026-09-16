@@ -147,6 +147,10 @@
    */
   function withTitle(name) {
     if (!name) return "";
+    // "Cash" is what the committee writes when a contribution has no name to
+    // record. It is not a person, so it gets no honorific — "Shri/Smt. Cash"
+    // on a receipt would read as a mistake, and be one.
+    if (/^cash$/i.test(name.trim())) return name;
     return /^(Mr|Mrs|Ms|Miss|Shri|Smt|Dr|Prof)\b\.?/i.test(name) ? name : "Shri/Smt. " + name;
   }
 
