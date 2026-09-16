@@ -89,6 +89,18 @@ function alwaysOpen() {
     : ["/maintenance.html"];
 }
 
+/**
+ * Images, fonts and the like.
+ *
+ * These must stay open however locked down the pages are: the receipt draws
+ * the society's artwork and its stamp from /receipt-template.png and
+ * /stamp.png, and redirecting those to the donations list left every donor's
+ * receipt a blank sheet with the text on it — which is exactly what happened.
+ *
+ * Only real asset extensions, so an HTML page cannot slip through by name.
+ */
+const ASSET = /\.(png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|css|js|map|webmanifest|txt|xml)$/i;
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const signedIn = await isValidSessionToken(request.cookies.get(GENERATOR_COOKIE)?.value);
@@ -110,7 +122,11 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  if (!signedIn && !OPEN_TO_ALL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (
+    !signedIn &&
+    !ASSET.test(pathname) &&
+    !OPEN_TO_ALL.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
     return NextResponse.redirect(new URL("/donations", request.url));
   }
 
