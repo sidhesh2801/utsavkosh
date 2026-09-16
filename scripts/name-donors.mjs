@@ -90,6 +90,13 @@ for (const [i, raw] of readFileSync(path, "utf8").split(/\r?\n/).entries()) {
     unreadable.push({ line: i + 1, text: line, why: "no name found" });
     continue;
   }
+  // A payment made from the PhonePe app shows the payer as masked digits —
+  // "********7781" — rather than a name. There is nothing there to record, and
+  // writing it would put a row of asterisks on somebody's receipt.
+  if (/^[*x\s]*\d*$/i.test(name) || (name.match(/\*/g) ?? []).length >= 3) {
+    unreadable.push({ line: i + 1, text: line, why: "payer is masked, not a name" });
+    continue;
+  }
   entries.push({ line: i + 1, utr: utr[0], name });
 }
 

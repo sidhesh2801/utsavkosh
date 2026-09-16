@@ -130,7 +130,20 @@ the only names in it are `Shivanu`, the society's own account, and
 and the name is on screen next to the UTR. So the names exist; they just have
 to be read off and matched back.
 
-Screenshot the transaction list, type or paste the lines into a file, and:
+Screenshot the transaction list into `reciept-ss/`, then read them without
+typing anything — macOS has text recognition built in:
+
+```bash
+swiftc -O scripts/ocr-screenshots.swift -o /tmp/ocr
+/tmp/ocr reciept-ss/*.jpeg > /tmp/raw.txt
+```
+
+Pair each `HH:MMam • Name` line with the `UTR: …` line under it, drop any whose
+payer is masked, and feed the result to the matcher. Twenty-nine screenshots —
+163 payments — took seconds this way. Move them to `reciept-done/` afterwards,
+so whatever is left in `reciept-ss/` is what still needs doing.
+
+Or type the lines into a file by hand:
 
 ```bash
 node --env-file=.env.local scripts/name-donors.mjs ~/Downloads/names.txt          # report
@@ -275,9 +288,10 @@ Enforced by Postgres, not the browser:
 
 ## Current state
 
-- **104 donations, ₹74,344.00** imported for Janmashtami & Dahi Handi 2026,
-  reconciled exactly against the committee's own total.
-- 69 named (bank UPI), 35 anonymous (PhonePe QR — the bank recorded no name).
+- **276 donations, ₹1,96,033** for Janmashtami & Dahi Handi 2026.
+- 256 named, 20 still anonymous (₹21,494). The 20 are payments made from the
+  PhonePe app, which shows the payer as masked digits — `********7781` — so
+  there is no name to read even on screen.
 - Five ₹1.00 entries are almost certainly QR tests. Kept, because they are real
   lines on the bank statement and the ledger has to reconcile with it.
 - `Harshad` appears twice (₹1,111 and ₹501, different days). Two people or one
@@ -305,6 +319,8 @@ scripts/import-donations.mjs    statement → report → SQL or direct write
 scripts/import-phonepe.mjs      PhonePe merchant export → report → write
 scripts/build-donor-message.mjs register → WhatsApp list + QR claim sheet
 scripts/name-donors.mjs         UTR + name from a screenshot → names on rows
+scripts/ocr-screenshots.swift   macOS text recognition, so the screenshots
+                                need not be read by hand
 scripts/backup.mjs              the whole register to ~/Downloads, CSV + JSON
 scripts/excluded-transactions.txt  payments the committee removed for good
 public/receipt-generator.html   the generator: one self-contained file
