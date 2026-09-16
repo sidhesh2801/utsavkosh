@@ -41,17 +41,18 @@ const icon = (path: ReactNode) => (
 );
 
 /**
- * The home page, the two public registers, and the two committee tools.
+ * Everything the app can do, and the one thing anyone can do without signing
+ * in.
  *
- * Residents see three tabs. Food coupons and the receipt generator are the
- * committee's work, not theirs, and a resident offered a menu item that asks
- * for a password has been shown a locked door for no reason.
+ * A resident sees Donations and nothing else — that is the whole app as far as
+ * they are concerned. The rest appears once the committee signs in.
  */
 const NAV: NavItem[] = [
   {
     href: "/",
     label: "Home",
     short: "Home",
+    committeeOnly: true,
     icon: icon(<path d="M3 10.5 12 3l9 7.5M5.5 9.5V21h13V9.5" />),
   },
   {

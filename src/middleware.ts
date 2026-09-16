@@ -15,6 +15,29 @@ import { GENERATOR_COOKIE, isValidSessionToken } from "@/lib/generator-auth";
 const PROTECTED = ["/receipt-generator.html", "/generator", "/food-counter"];
 
 /**
+ * What anyone may reach without the committee password.
+ *
+ * The donations list and a donor's own receipt. Everything else — the home
+ * page, the ledger, the festival pages, the activities, the gallery — needs a
+ * sign-in. Hiding the menu items was not enough: a link already shared still
+ * opened the page.
+ *
+ * Anything not listed is sent to /donations rather than refused, which leaves
+ * a resident somewhere useful instead of at an error they can do nothing
+ * about. The sign-in routes stay open, or the committee could never get in.
+ */
+const OPEN_TO_ALL = [
+  "/donations",
+  "/receipt.html",
+  "/generator-login",
+  "/maintenance.html",
+  "/api/receipts/public",
+  "/api/health",
+  "/api/generator-login",
+  "/api/session",
+];
+
+/**
  * Closing the app for maintenance.
  *
  * Set MAINTENANCE=1 in Vercel and redeploy; unset it and redeploy to reopen.
@@ -85,6 +108,10 @@ export async function middleware(request: NextRequest) {
         "retry-after": "3600",
       },
     });
+  }
+
+  if (!signedIn && !OPEN_TO_ALL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return NextResponse.redirect(new URL("/donations", request.url));
   }
 
   if (!PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {

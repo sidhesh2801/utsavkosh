@@ -31,9 +31,17 @@ twice.
 
 ## Who can do what
 
-**Residents** need no account. They read the donations list, the ledger and the
-activities. They cannot change anything, and there's nothing for them to sign
-into.
+**Residents** need no account, and they see one page: **`/donations`**. Their
+own receipt opens from it. Everything else — the home page, the ledger, the
+festival pages, the activities, the gallery, food coupons, the receipt
+generator — needs the committee password, and any other address redirects to
+the donations list rather than showing an error.
+
+Set that way on the committee's instruction in September 2026, after the
+festival. Spending and the balance are hidden with it: five of the nine
+expenses still have no bill against them, and a spending figure with nothing
+behind it invites the question it cannot answer. Opening it back up is a
+matter of shortening `OPEN_TO_ALL` in `src/middleware.ts`.
 
 **The committee** has one password, covering three things: the receipt
 generator, adding a cash donation, and adding or removing a ledger entry. A
