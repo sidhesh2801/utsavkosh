@@ -31,14 +31,13 @@ T2608220950596106655244   # Rs 1  — the only row in the export with no UTR at
 623423432527
 623409666209              # the IMPS reference the statement gives that last one
 
-# --- Removed by the committee, 24 Aug 2026 -------------------------------
-# Taken out on 26 Aug 2026 on the committee's instruction.
-T2608242205429454795980   # Rs 2,000
-T2608242209230202673980   # Rs 3,100
-T2608242255478689502210   # Rs 3,100
-360233400614              # the same three, by their bank UTR
-696016303926
-623637799830
+# --- Restored 16 Sep 2026 -------------------------------------------------
+# Rs 2,000 and two of Rs 3,100 were taken out on 26 Aug as unwanted entries.
+# The screenshots later gave them names — Pride Health Care and Dinesh Singh
+# twice — and they are ordinary contributions, so they are back in the
+# register. Their exclusion lines are gone rather than commented out: a live
+# exclusion file that half-remembers a decision is worse than one that only
+# holds what is true now.
 
 # --- Collected by Rohit and passed on, removed 14 Sep 2026 ----------------
 # Residents paid Rohit Joshi directly; he forwarded the money to the society
