@@ -295,9 +295,11 @@ Enforced by Postgres, not the browser:
 ## Current state
 
 - **279 donations, ₹2,04,233** for Janmashtami & Dahi Handi 2026.
-- 273 named, 6 still anonymous (₹5,004). Those six were paid from the PhonePe
+- 275 named, 4 still anonymous (₹4,002). Those four were paid from the PhonePe
   app, which shows the payer as masked digits — `********7781` — so there is
   no name to read even on screen. That is the floor, not an outstanding task.
+- Every name taken from a screenshot has been checked back against the
+  screenshots: 180 comparable rows, 180 agreements, no disagreement.
 - Five ₹1.00 entries are almost certainly QR tests. Kept, because they are real
   lines on the bank statement and the ledger has to reconcile with it.
 - `Harshad` appears twice (₹1,111 and ₹501, different days). Two people or one
