@@ -453,10 +453,10 @@ function DonationsTab({
           <table className="w-full min-w-[38rem] text-left text-[0.8125rem]">
             <thead>
               <tr className="border-b border-line text-[0.6875rem] uppercase tracking-[0.05em] text-ink-faint">
-                <th className="px-4 py-2.5 font-semibold">Date</th>
-                <th className="px-4 py-2.5 font-semibold">Receipt</th>
-                <th className="px-4 py-2.5 font-semibold">Transaction ID</th>
                 <th className="px-4 py-2.5 font-semibold">Name</th>
+                <th className="px-4 py-2.5 font-semibold">Receipt</th>
+                <th className="px-4 py-2.5 font-semibold">Date</th>
+                <th className="px-4 py-2.5 font-semibold">Transaction ID</th>
                 <th className="px-4 py-2.5 font-semibold">Flat no.</th>
                 <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
                 {canCollect ? <th className="px-4 py-2.5 font-semibold" /> : null}
@@ -465,8 +465,11 @@ function DonationsTab({
             <tbody className="divide-y divide-line">
               {filtered.map((d) => (
                 <tr key={d.id} className="align-top">
-                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
-                    {shortDate(d.receivedAt)}
+                  <td className="px-4 py-2.5 text-ink">
+                    {d.donorName}
+                    {d.isTenant ? (
+                      <span className="ml-1.5 text-[0.6875rem] text-ink-faint">tenant</span>
+                    ) : null}
                   </td>
                   {/* Every donation has a receipt number the moment its row
                       exists — the database assigns one by trigger — so the
@@ -487,18 +490,15 @@ function DonationsTab({
                       <span className="ml-1.5 text-[0.6875rem] text-credit">sent</span>
                     ) : null}
                   </td>
+                  <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
+                    {shortDate(d.receivedAt)}
+                  </td>
                   {/* The UPI reference or PhonePe id, in full. Two thirds of
                       the contributions carry no name, so for those this is the
                       only thing a donor can recognise their own line by — and
                       half a reference is no use for that. */}
                   <td className="tnum whitespace-nowrap px-4 py-2.5 text-[0.6875rem] text-ink-faint">
                     {d.reference || "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink">
-                    {d.donorName}
-                    {d.isTenant ? (
-                      <span className="ml-1.5 text-[0.6875rem] text-ink-faint">tenant</span>
-                    ) : null}
                   </td>
                   <td className="tnum whitespace-nowrap px-4 py-2.5 text-ink-soft">
                     {d.wing || d.flat ? flatLabel(d.wing, d.flat) : "—"}
