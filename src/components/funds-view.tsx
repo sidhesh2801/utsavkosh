@@ -26,6 +26,7 @@ import { CategoryBars, MonthlyFlowChart } from "./charts";
 import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
 import {
   AddDonationButton,
+  DonationSheet,
   AddExpenseButton,
   CommitteeSignInHint,
   DeleteExpenseButton,
@@ -90,7 +91,7 @@ export function FundsView({
    */
   activityId?: string;
 } = {}) {
-  const { data, isAdmin, canCollect } = useSociety();
+  const { data, isAdmin } = useSociety();
   const committee = useCommitteeSession();
   const [tab, setTab] = useState<Tab>(only ?? "overview");
 
@@ -171,7 +172,7 @@ export function FundsView({
 
       {tab === "overview" ? <Overview /> : null}
       {tab === "donations" ? (
-        <DonationsTab canCollect={canCollect} isAdmin={isAdmin} pinned={activityId} />
+        <DonationsTab isAdmin={isAdmin} pinned={activityId} />
       ) : null}
       {tab === "expenses" ? <ExpensesTab isAdmin={isAdmin} pinned={activityId} /> : null}
     </div>
@@ -333,10 +334,8 @@ function Ledger({ limit }: { limit?: number }) {
 /* --------------------------------------------------------------- donations */
 
 function DonationsTab({
-  canCollect,
   pinned,
 }: {
-  canCollect: boolean;
   isAdmin?: boolean;
   /** Set when the screen belongs to one festival; the picker then disappears. */
   pinned?: string;
@@ -459,7 +458,7 @@ function DonationsTab({
                 <th className="px-4 py-2.5 font-semibold">Transaction ID</th>
                 <th className="px-4 py-2.5 font-semibold">Flat no.</th>
                 <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
-                {canCollect ? <th className="px-4 py-2.5 font-semibold" /> : null}
+                {committee.authenticated ? <th className="px-4 py-2.5 font-semibold" /> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -506,7 +505,10 @@ function DonationsTab({
                   <td className="tnum whitespace-nowrap px-4 py-2.5 text-right font-medium text-ink">
                     {money(d.amount)}
                   </td>
-                  {canCollect ? (
+                  {/* Gated on the committee session, not on canCollect — that
+                      came from the Supabase Auth login, which has no accounts,
+                      so this button has never once appeared. */}
+                  {committee.authenticated ? (
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       <button
                         type="button"
@@ -531,7 +533,17 @@ function DonationsTab({
 
       {adding ? <DonationForm open onClose={() => setAdding(false)} /> : null}
       {editing ? (
-        <DonationForm open existing={editing} onClose={() => setEditing(null)} />
+        committee.authenticated ? (
+          // The committee login writes through the server routes; the older
+          // Supabase Auth form writes with a user token and cannot.
+          <DonationSheet
+            existing={editing}
+            onClose={() => setEditing(null)}
+            onSaved={() => window.location.reload()}
+          />
+        ) : (
+          <DonationForm open existing={editing} onClose={() => setEditing(null)} />
+        )
       ) : null}
     </div>
   );

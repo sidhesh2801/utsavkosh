@@ -54,6 +54,7 @@ async function committeeMemberId(): Promise<string> {
 }
 
 interface Body {
+  id?: string;
   donorName?: string;
   wing?: string;
   flat?: string;
@@ -145,6 +146,92 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+/**
+ * Corrects a contribution.
+ *
+ * What may be changed depends on where the row came from. A contribution with
+ * a transaction reference was matched against a bank statement or a merchant
+ * export, and its amount, date and reference are what that reconciliation
+ * rests on — so those stay as imported, and only the details the sources never
+ * carried can be filled in: who paid, their flat, their number.
+ *
+ * A cash entry has no such backing. Nothing outside the app knows about it, so
+ * everything on it is the committee's to correct.
+ */
+export async function PATCH(request: Request) {
+  if (!(await authorised(request))) {
+    return NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+  }
+  if (!SUPABASE_URL || !SERVICE_KEY) {
+    return NextResponse.json({ error: "The register isn't reachable." }, { status: 503 });
+  }
+
+  let body: Body;
+  try {
+    body = (await request.json()) as Body;
+  } catch {
+    return NextResponse.json({ error: "Could not read the request." }, { status: 400 });
+  }
+
+  const id = (body.id ?? "").trim();
+  if (!id) return NextResponse.json({ error: "Which contribution?" }, { status: 400 });
+
+  const supabase = admin();
+  const { data: existing } = await supabase
+    .from("donations")
+    .select("id, reference, receipt_no")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!existing) {
+    return NextResponse.json({ error: "That contribution no longer exists." }, { status: 404 });
+  }
+
+  const imported = Boolean(existing.reference);
+  const patch: Record<string, unknown> = {};
+
+  if (body.donorName !== undefined) {
+    const name = body.donorName.trim();
+    if (!name) {
+      return NextResponse.json({ error: "Enter the contributor's name." }, { status: 400 });
+    }
+    patch.donor_name = name;
+  }
+  if (body.wing !== undefined) patch.wing = body.wing.trim().toUpperCase() || null;
+  if (body.flat !== undefined) patch.flat = body.flat.replace(/\D/g, "") || null;
+  if (body.isTenant !== undefined) patch.is_tenant = Boolean(body.isTenant);
+
+  if (!imported) {
+    if (body.amount !== undefined) {
+      const amount = Number(body.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return NextResponse.json({ error: "Amount must be more than zero." }, { status: 400 });
+      }
+      patch.amount = amount;
+    }
+    if (body.method !== undefined) patch.method = body.method || "cash";
+    if (body.receivedAt !== undefined) patch.received_at = body.receivedAt;
+    if (body.reference !== undefined) patch.reference = body.reference.trim() || null;
+  } else if (
+    body.amount !== undefined ||
+    body.receivedAt !== undefined ||
+    body.reference !== undefined
+  ) {
+    // Said outright rather than ignored, so nobody spends an afternoon
+    // wondering why an amount they typed did not take.
+    return NextResponse.json(
+      {
+        error: `${existing.receipt_no} came from a statement — its amount, date and transaction ID must match it. Name and flat can be corrected.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  const { error } = await supabase.from("donations").update(patch).eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true, imported });
 }
 
 export async function DELETE(request: Request) {

@@ -5,7 +5,7 @@ import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from "@/lib/types";
 import { humanise, methodLabel, toDateInput } from "@/lib/format";
 import { useSociety } from "@/lib/store";
 import { Button, Field, Sheet, useToast } from "./ui";
-import type { Expense } from "@/lib/types";
+import type { Donation, Expense } from "@/lib/types";
 
 /**
  * Whether this browser holds a committee session.
@@ -403,19 +403,41 @@ export function AddDonationButton({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+export function DonationSheet({
+  onClose,
+  onSaved,
+  existing,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+  existing?: Donation;
+}) {
   const { data } = useSociety();
   const toast = useToast();
 
-  const [donorName, setDonorName] = useState("");
-  const [wing, setWing] = useState("");
-  const [flat, setFlat] = useState("");
-  const [amount, setAmount] = useState("");
-  const [reference, setReference] = useState("");
-  const [method, setMethod] = useState("cash");
-  const [receivedAt, setReceivedAt] = useState(toDateInput(new Date().toISOString()));
-  const [activityId, setActivityId] = useState(data.activities[0]?.id ?? "");
-  const [isTenant, setIsTenant] = useState(false);
+  /*
+   * A contribution with a transaction reference came off a bank statement or a
+   * merchant export, and its amount, date and reference are what reconciling
+   * against those rests on. Those stay locked; what the sources never carried
+   * — who paid, their flat, their number — is what the committee can fill in.
+   */
+  const imported = Boolean(existing?.reference);
+
+  const [donorName, setDonorName] = useState(
+    existing && !/^Anonymous\b/.test(existing.donorName) ? existing.donorName : "",
+  );
+  const [wing, setWing] = useState(existing?.wing ?? "");
+  const [flat, setFlat] = useState(existing?.flat ?? "");
+  const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
+  const [reference, setReference] = useState(existing?.reference ?? "");
+  const [method, setMethod] = useState<string>(existing?.method ?? "cash");
+  const [receivedAt, setReceivedAt] = useState(
+    toDateInput(existing?.receivedAt ?? new Date().toISOString()),
+  );
+  const [activityId, setActivityId] = useState(
+    existing?.activityId ?? data.activities[0]?.id ?? "",
+  );
+  const [isTenant, setIsTenant] = useState(existing?.isTenant ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -425,12 +447,23 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     setBusy(true);
     try {
       const res = await fetch("/api/donations", {
-        method: "POST",
+        method: existing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          donorName, wing, flat, amount: Number(amount), method, reference,
-          receivedAt, activityId: activityId || null, isTenant,
-        }),
+        body: JSON.stringify(
+          existing
+            ? imported
+              // Only what an import never knew. Sending the amount back would
+              // be refused, and rightly.
+              ? { id: existing.id, donorName, wing, flat, isTenant }
+              : {
+                  id: existing.id, donorName, wing, flat, isTenant,
+                  amount: Number(amount), method, reference, receivedAt,
+                }
+            : {
+                donorName, wing, flat, amount: Number(amount), method, reference,
+                receivedAt, activityId: activityId || null, isTenant,
+              },
+        ),
       });
       const payload = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -438,7 +471,7 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         setBusy(false);
         return;
       }
-      toast(`${donorName} recorded.`);
+      toast(existing ? `${donorName} updated.` : `${donorName} recorded.`);
       onSaved();
     } catch {
       setError("Couldn't reach the server. Check your connection.");
@@ -450,15 +483,21 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     <Sheet
       open
       onClose={onClose}
-      title="Record a contribution"
-      description="For money handed over in person, or a payment the statement import will not pick up. Give the transaction ID where there is one."
+      title={existing ? "Correct this contribution" : "Record a contribution"}
+      description={
+        existing
+          ? imported
+            ? "This came from a statement, so its amount, date and transaction ID stay as imported. The name and flat are yours to correct."
+            : "A cash entry — nothing outside the app knows about it, so everything here can be corrected."
+          : "For money handed over in person, or a payment the statement import will not pick up. Give the transaction ID where there is one."
+      }
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Saving…" : "Record"}
+            {busy ? "Saving…" : existing ? "Save changes" : "Record"}
           </Button>
         </>
       }
@@ -495,13 +534,14 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               inputMode="numeric"
             />
           </Field>
-          <Field label="Amount ₹" required>
+          <Field label="Amount ₹" required hint={imported ? "As imported" : undefined}>
             <input
               className="field tnum"
               inputMode="decimal"
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
               required
+              readOnly={imported}
             />
           </Field>
         </div>
@@ -514,13 +554,14 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               ))}
             </select>
           </Field>
-          <Field label="Date received" required>
+          <Field label="Date received" required hint={imported ? "As imported" : undefined}>
             <input
               className="field"
               type="date"
               value={receivedAt}
               onChange={(e) => setReceivedAt(e.target.value)}
               required
+              readOnly={imported}
             />
           </Field>
         </div>
@@ -541,6 +582,7 @@ function DonationSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () 
             value={reference}
             onChange={(e) => setReference(e.target.value.trim())}
             placeholder={method === "cash" ? "—" : "e.g. 128286391110"}
+            readOnly={imported}
           />
         </Field>
 
