@@ -401,15 +401,21 @@ function DonationsTab({
             </option>
           ))}
         </select>
-        <ExportCsv
-          label="Download CSV"
-          kind="donations"
-          headers={[
-            "Receipt no.", "Date", "Name", "Flat", "Owner/Tenant",
-            "Amount (INR)", "Method", "Transaction ID", "Towards",
-          ]}
-          rows={csvRows}
-        />
+        {/* Committee only. The file is every contribution in one download,
+            with the amounts and a total — the same figures the page itself no
+            longer shows a resident, so leaving the button would have handed
+            them over anyway. */}
+        {committee.authenticated ? (
+          <ExportCsv
+            label="Download CSV"
+            kind="donations"
+            headers={[
+              "Receipt no.", "Date", "Name", "Flat", "Owner/Tenant",
+              "Amount (INR)", "Method", "Transaction ID", "Towards",
+            ]}
+            rows={csvRows}
+          />
+        ) : null}
         {/* The Ledger tab has always offered a way in when signed out; this one
             showed nothing, so a committee member looking for "Add donation"
             found an empty corner and no clue that a sign-in was what was
