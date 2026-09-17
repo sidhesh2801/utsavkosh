@@ -9,11 +9,11 @@ import { Card, SectionTitle } from "./ui";
 /**
  * Where the money is going, as proportions and nothing else.
  *
- * The committee does not want the ledger or its figures public yet — five of
- * the nine expenses have no bill against them, and a rupee total invites the
- * question those five cannot answer. But "we are spending it, and here is on
- * what" is the whole reason residents were asked to contribute, and silence
- * answers that worse than a share does.
+ * The committee does not want the ledger or its figures public yet, and most
+ * of the entries still have no bill against them — a rupee total invites the
+ * question those cannot answer. But "we are spending it, and here is on what"
+ * is the whole reason residents were asked to contribute, and silence answers
+ * that worse than a share does.
  *
  * So: shares of total spending, by category, and nothing else. No rupee
  * amounts, no total, no count of entries, not even a line about bills — every
