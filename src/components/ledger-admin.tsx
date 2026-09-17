@@ -343,6 +343,52 @@ export function ExpenseSheet({
   );
 }
 
+/**
+ * Removes a contribution. Committee only, and the server checks again.
+ *
+ * Says what it takes to keep it removed. A row from a statement comes straight
+ * back on the next import unless its reference is written into
+ * scripts/excluded-transactions.txt, and nobody would guess that from a
+ * "Removed." toast.
+ */
+export function DeleteDonationButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        if (!window.confirm("Remove this contribution from the register?")) return;
+        setBusy(true);
+        const res = await fetch(`/api/donations?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        const payload = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          receiptNo?: string;
+          reference?: string | null;
+        };
+        setBusy(false);
+        if (!res.ok) {
+          toast(payload.error ?? "Could not remove it.", "error");
+          return;
+        }
+        toast(
+          payload.reference
+            ? `${payload.receiptNo} removed. Add ${payload.reference} to excluded-transactions.txt or the next import restores it.`
+            : `${payload.receiptNo} removed.`,
+        );
+        onDone();
+      }}
+      className="text-[0.6875rem] font-medium text-debit underline decoration-debit/30 underline-offset-2 disabled:opacity-50"
+    >
+      {busy ? "…" : "Remove"}
+    </button>
+  );
+}
+
 /** Removes an entry. Committee only, and the server checks again. */
 export function DeleteExpenseButton({ id, onDone }: { id: string; onDone: () => void }) {
   const toast = useToast();
@@ -416,13 +462,11 @@ export function DonationSheet({
   const toast = useToast();
 
   /*
-   * A contribution with a transaction reference came off a bank statement or a
-   * merchant export, and its amount, date and reference are what reconciling
-   * against those rests on. Those stay locked; what the sources never carried
-   * — who paid, their flat, their number — is what the committee can fill in.
+   * Everything is editable, on the committee's instruction — including the
+   * amount, date and reference of a row that came off a statement. They
+   * answer for the figures, and a field they cannot change here only moves
+   * the correction into the database, where nothing records it.
    */
-  const imported = Boolean(existing?.reference);
-
   const [donorName, setDonorName] = useState(
     existing && !/^Anonymous\b/.test(existing.donorName) ? existing.donorName : "",
   );
@@ -451,14 +495,10 @@ export function DonationSheet({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           existing
-            ? imported
-              // Only what an import never knew. Sending the amount back would
-              // be refused, and rightly.
-              ? { id: existing.id, donorName, wing, flat, isTenant }
-              : {
-                  id: existing.id, donorName, wing, flat, isTenant,
-                  amount: Number(amount), method, reference, receivedAt,
-                }
+            ? {
+                id: existing.id, donorName, wing, flat, isTenant,
+                amount: Number(amount), method, reference, receivedAt,
+              }
             : {
                 donorName, wing, flat, amount: Number(amount), method, reference,
                 receivedAt, activityId: activityId || null, isTenant,
@@ -486,9 +526,7 @@ export function DonationSheet({
       title={existing ? "Correct this contribution" : "Record a contribution"}
       description={
         existing
-          ? imported
-            ? "This came from a statement, so its amount, date and transaction ID stay as imported. The name and flat are yours to correct."
-            : "A cash entry — nothing outside the app knows about it, so everything here can be corrected."
+          ? "Every field can be corrected. If this came from a statement, changing the amount or date means the register no longer agrees with it."
           : "For money handed over in person, or a payment the statement import will not pick up. Give the transaction ID where there is one."
       }
       footer={
@@ -534,14 +572,13 @@ export function DonationSheet({
               inputMode="numeric"
             />
           </Field>
-          <Field label="Amount ₹" required hint={imported ? "As imported" : undefined}>
+          <Field label="Amount ₹" required>
             <input
               className="field tnum"
               inputMode="decimal"
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
               required
-              readOnly={imported}
             />
           </Field>
         </div>
@@ -554,14 +591,13 @@ export function DonationSheet({
               ))}
             </select>
           </Field>
-          <Field label="Date received" required hint={imported ? "As imported" : undefined}>
+          <Field label="Date received" required>
             <input
               className="field"
               type="date"
               value={receivedAt}
               onChange={(e) => setReceivedAt(e.target.value)}
               required
-              readOnly={imported}
             />
           </Field>
         </div>
@@ -582,7 +618,6 @@ export function DonationSheet({
             value={reference}
             onChange={(e) => setReference(e.target.value.trim())}
             placeholder={method === "cash" ? "—" : "e.g. 128286391110"}
-            readOnly={imported}
           />
         </Field>
 

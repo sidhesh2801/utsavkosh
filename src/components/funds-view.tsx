@@ -26,6 +26,7 @@ import { CategoryBars, MonthlyFlowChart } from "./charts";
 import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
 import {
   AddDonationButton,
+  DeleteDonationButton,
   DonationSheet,
   AddExpenseButton,
   CommitteeSignInHint,
@@ -515,13 +516,19 @@ function DonationsTab({
                       so this button has never once appeared. */}
                   {committee.authenticated ? (
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(d)}
-                        className="text-[0.6875rem] font-medium text-brand underline decoration-brand/30 underline-offset-2"
-                      >
-                        Edit
-                      </button>
+                      <span className="inline-flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(d)}
+                          className="text-[0.6875rem] font-medium text-brand underline decoration-brand/30 underline-offset-2"
+                        >
+                          Edit
+                        </button>
+                        <DeleteDonationButton
+                          id={d.id}
+                          onDone={() => window.location.reload()}
+                        />
+                      </span>
                     </td>
                   ) : null}
                 </tr>

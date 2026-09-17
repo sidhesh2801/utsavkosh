@@ -149,16 +149,18 @@ export async function POST(request: Request) {
 }
 
 /**
- * Corrects a contribution.
+ * Corrects a contribution — any field, on any row.
  *
- * What may be changed depends on where the row came from. A contribution with
- * a transaction reference was matched against a bank statement or a merchant
- * export, and its amount, date and reference are what that reconciliation
- * rests on — so those stay as imported, and only the details the sources never
- * carried can be filled in: who paid, their flat, their number.
+ * Amount, date and transaction reference were locked on imported rows, because
+ * those are what reconciling against the bank statement rests on. The
+ * committee asked for them open: they are the ones who answer for the figures,
+ * and a lock they did not want only means the correction happens in the
+ * database instead, where nothing records it.
  *
- * A cash entry has no such backing. Nothing outside the app knows about it, so
- * everything on it is the committee's to correct.
+ * The cost is real and stays with them: change an imported amount and the
+ * register no longer agrees with the statement it came from, and the next
+ * import will not put it back — the duplicate test matches on the reference,
+ * which still exists.
  */
 export async function PATCH(request: Request) {
   if (!(await authorised(request))) {
@@ -189,7 +191,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "That contribution no longer exists." }, { status: 404 });
   }
 
-  const imported = Boolean(existing.reference);
   const patch: Record<string, unknown> = {};
 
   if (body.donorName !== undefined) {
@@ -203,35 +204,20 @@ export async function PATCH(request: Request) {
   if (body.flat !== undefined) patch.flat = body.flat.replace(/\D/g, "") || null;
   if (body.isTenant !== undefined) patch.is_tenant = Boolean(body.isTenant);
 
-  if (!imported) {
-    if (body.amount !== undefined) {
-      const amount = Number(body.amount);
-      if (!Number.isFinite(amount) || amount <= 0) {
-        return NextResponse.json({ error: "Amount must be more than zero." }, { status: 400 });
-      }
-      patch.amount = amount;
+  if (body.amount !== undefined) {
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ error: "Amount must be more than zero." }, { status: 400 });
     }
-    if (body.method !== undefined) patch.method = body.method || "cash";
-    if (body.receivedAt !== undefined) patch.received_at = body.receivedAt;
-    if (body.reference !== undefined) patch.reference = body.reference.trim() || null;
-  } else if (
-    body.amount !== undefined ||
-    body.receivedAt !== undefined ||
-    body.reference !== undefined
-  ) {
-    // Said outright rather than ignored, so nobody spends an afternoon
-    // wondering why an amount they typed did not take.
-    return NextResponse.json(
-      {
-        error: `${existing.receipt_no} came from a statement — its amount, date and transaction ID must match it. Name and flat can be corrected.`,
-      },
-      { status: 409 },
-    );
+    patch.amount = amount;
   }
+  if (body.method !== undefined) patch.method = body.method || "cash";
+  if (body.receivedAt !== undefined) patch.received_at = body.receivedAt;
+  if (body.reference !== undefined) patch.reference = body.reference.trim() || null;
 
   const { error } = await supabase.from("donations").update(patch).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, imported });
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(request: Request) {
