@@ -15,10 +15,11 @@ import { Card, SectionTitle } from "./ui";
  * what" is the whole reason residents were asked to contribute, and silence
  * answers that worse than a share does.
  *
- * So: shares of total spending, by category. No rupee amounts, no total, no
- * per-entry detail. A resident learns that most of it went on the mandap and
- * almost none on stationery, which is the shape of the answer they want,
- * without learning a single figure.
+ * So: shares of total spending, by category, and nothing else. No rupee
+ * amounts, no total, no count of entries, not even a line about bills — every
+ * sentence around the bars is one more fact given away. A resident learns that
+ * most of it went on catering and almost none on printing, which is the shape
+ * of the answer they want, without learning a single figure.
  *
  * Percentages of an undisclosed total are not reversible into amounts. If the
  * committee ever publishes one expense, the ratios would give up the rest —
@@ -33,23 +34,17 @@ export function SpendingShare({ expenses }: { expenses: Expense[] }) {
       .map((s) => ({
         category: s.category,
         share: (s.amount / total) * 100,
-        count: s.count,
       }))
       .sort((a, b) => b.share - a.share);
   }, [expenses]);
 
   if (!slices.length) return null;
 
-  const entries = slices.reduce((t, s) => t + s.count, 0);
-
   return (
     <Card className="mb-5 p-4">
       <SectionTitle>Where the money is going</SectionTitle>
-      <p className="mb-3 text-[0.8125rem] leading-relaxed text-ink-soft">
-        The share of spending by kind, across {entries}{" "}
-        {entries === 1 ? "entry" : "entries"}. Bills are kept for all of it and
-        the committee can show them on request.
-      </p>
+      {/* No count of entries, no note about bills, no rupees. The bars alone,
+          because anything written round them is another fact given away. */}
 
       <ul className="space-y-2.5">
         {slices.map((s) => (
