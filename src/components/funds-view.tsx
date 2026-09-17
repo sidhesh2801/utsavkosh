@@ -23,6 +23,7 @@ import {
   StatTile,
 } from "./ui";
 import { CategoryBars, MonthlyFlowChart } from "./charts";
+import { SpendingShare } from "./spending-share";
 import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
 import {
   AddDonationButton,
@@ -122,6 +123,14 @@ export function FundsView({
            and the balance in one WhatsApp message, to anybody who tapped it —
            which undid hiding those figures from the page it sat on. */
       />
+
+      {/* Proportions rather than figures. The committee does not want the
+          ledger public yet, but "here is what it is going on" is why residents
+          were asked to contribute, and saying nothing answers that worse than
+          a share does. */}
+      {!committee.authenticated && (only === "donations" || !only) ? (
+        <SpendingShare expenses={scoped.expenses} />
+      ) : null}
 
       {/* No figures at all for a resident — not spending, not the balance, and
           not the total collected. They read the list of contributions; what it
