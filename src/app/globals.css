@@ -174,12 +174,21 @@
   }
 }
 
-/* Respect a user's reduced-motion preference for the sheet and lightbox. */
+/**
+ * Respect a user's reduced-motion preference.
+ *
+ * The iteration count matters as much as the duration: a looping animation
+ * squeezed to 0.01ms and left running forever is not "no motion", it is a
+ * flicker. Capping it at one pass lands the element on its final frame and
+ * leaves it there — which is what the collage's drift needs.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
 }
@@ -210,4 +219,62 @@
 
 .animate-fade-in {
   animation: fade-in 150ms ease-out;
+}
+
+/**
+ * The festival collage.
+ *
+ * Two animations on one element, which is why the tilt lives in the keyframes
+ * rather than in a transform of its own: a second `transform` would overwrite
+ * the first. `pin-up` runs once as the photo arrives; `drift` then takes over
+ * and never stops.
+ *
+ * `--tilt`, `--drift` and `--enter` are set per tile in the component, so every
+ * photo hangs at its own angle and moves on its own clock.
+ */
+@keyframes pin-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px) rotate(0deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--tilt)) scale(1);
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--tilt));
+  }
+  50% {
+    transform: translateY(-5px) rotate(calc(var(--tilt) * 0.55));
+  }
+}
+
+.collage-tile {
+  opacity: 0;
+  transform: rotate(var(--tilt));
+  animation:
+    pin-up 520ms cubic-bezier(0.22, 1, 0.36, 1) var(--enter) both,
+    drift var(--drift) ease-in-out calc(var(--enter) + 520ms) infinite;
+}
+
+/**
+ * Straighten and lift under the finger, so a photo feels picked up rather than
+ * merely clicked.
+ *
+ * `animation: none` rather than `animation-play-state: paused` — a paused
+ * animation still wins over a plain `transform`, so pausing would freeze the
+ * drift and leave the photo crooked. Dropping the animation means the base
+ * `opacity: 0` would come back with it, hence the explicit `1`.
+ */
+.collage-tile:hover,
+.collage-tile:focus-visible {
+  animation: none;
+  opacity: 1;
+  transform: rotate(0deg) scale(1.04);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 10;
 }

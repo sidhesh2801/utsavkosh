@@ -11,11 +11,8 @@ import { GENERATOR_COOKIE, type Role, sessionRole } from "@/lib/generator-auth";
  * password — `volunteer` — that opens this page and nothing else, so the
  * people who ran the festival can write their own line without being handed
  * the ledger and the receipt generator along with it. What they write is
- * published straight away; nobody is standing between a volunteer and their
- * own two sentences.
- *
- * Removing an entry stays the committee's, because a shared password is a
- * shared password and the credits should not be one bad afternoon from empty.
+ * published straight away, and they can edit or remove it themselves; nobody
+ * is standing between a volunteer and their own two sentences.
  */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -175,17 +172,12 @@ export async function PATCH(request: Request) {
 }
 
 /**
- * Committee only. Adding and editing are open to the volunteers' password, but
- * that password will be shared around a WhatsApp group, and the difference
- * between a wrong sentence and a missing person is that one of them is
- * recoverable from the screen.
+ * Either sign-in. A volunteer who added themselves twice, or who would rather
+ * not be listed at all, should not have to find a committee member to undo it.
  */
 export async function DELETE(request: Request) {
-  if ((await roleOf(request)) !== "committee") {
-    return NextResponse.json(
-      { error: "Only the committee can remove someone." },
-      { status: 403 },
-    );
+  if (!(await roleOf(request))) {
+    return NextResponse.json({ error: SIGN_IN }, { status: 401 });
   }
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json({ error: "The register isn't reachable." }, { status: 503 });
