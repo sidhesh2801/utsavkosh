@@ -226,14 +226,28 @@ remove their own entry.
 Whatever someone types in *What you helped with* becomes the heading they
 appear under, so a new kind of job starts a new section on the page.
 
-The photo wall above it is built from **`public/collage/`**. Drop the pictures
-in, push, and they are on the page, in filename order — name them
-`01-handi.jpg`, `02-prasad.jpg` to control it. Anything `.jpg .jpeg .png .webp
-.avif` counts.
+Each person can attach their own photo to their credit. Optional — where
+there's none, their initial stands in.
 
-**It is read at build time, so a new photo needs a deploy.** Pushing the files
-is the deploy, so in practice this only matters if someone uploads them through
-the Vercel dashboard and wonders why nothing changed.
+**The photo wall** above the names comes from two places, and they sit
+side by side:
+
+- **Uploaded through the app.** Anyone signed in taps *Add photos*, picks as
+  many as they like, and they are on the page. They go to the public `collage`
+  bucket in Supabase, and can be removed from the full-screen view.
+- **`public/collage/` in the repo.** Drop pictures in, push, done — in filename
+  order, so `01-handi.jpg`, `02-prasad.jpg` controls it. This half is read at
+  build time, so it needs a deploy; pushing the files *is* the deploy, so it
+  only bites if someone uploads through the Vercel dashboard and wonders why
+  nothing changed.
+
+Anything `.jpg .jpeg .png .webp .heic` counts, 10 MB a photo, 200 in the
+bucket.
+
+Both collage buckets (`collage`, `faces`) are **public**, which is the point —
+an image behind a URL that expires is an image that stops loading. So nothing
+private should go in them. There is no way to tell from the app that a photo
+was uploaded rather than committed, which is deliberate; the wall is one wall.
 
 ### Spending
 
