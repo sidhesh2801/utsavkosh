@@ -23,7 +23,6 @@ import {
   StatTile,
 } from "./ui";
 import { CategoryBars, MonthlyFlowChart } from "./charts";
-import { SpendingShare } from "./spending-share";
 import { SpendingDonut } from "./spending-donut";
 import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
 import {
@@ -124,10 +123,21 @@ export function FundsView({
            which undid hiding those figures from the page it sat on. */
       />
 
-      {/* The shares, on the donations page, for a reader who came to see the
-          contributions and gets the shape of the spending on the way past. The
-          ledger itself carries the ring and the figures. */}
-      {only === "donations" ? <SpendingShare expenses={scoped.expenses} /> : null}
+      {/* The same chart the ledger shows, on the donations page too. Most
+          residents only ever open the link they were sent, and that link is
+          the donations list — so the spending has to be visible from here or
+          it may as well not be published.
+
+          Deliberately the same component, not a second view of the same
+          numbers: the two had different groupings, one folding nine categories
+          into six and an Other while the other showed all nine, and a reader
+          who saw both would have no reason to trust either. */}
+      {only === "donations" ? (
+        <Card className="mb-5 p-4">
+          <SectionTitle>Where the money is going</SectionTitle>
+          <SpendingDonut expenses={scoped.expenses} />
+        </Card>
+      ) : null}
 
       {/* Back for everyone, now that the ledger is public: each expense is
           listed with its amount a scroll below, so a hidden "Spent" total was
