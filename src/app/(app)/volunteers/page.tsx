@@ -47,9 +47,10 @@ export default function VolunteersPage() {
   // volunteer who listed themselves twice shouldn't have to find a committee
   // member to undo it.
   const canWrite = session.role !== null;
-  // Reordering is the committee's. Adding yourself is one thing; deciding
-  // whose contribution is read first is a decision about everybody.
-  const canOrder = session.authenticated;
+  // Reordering travels with the rest of it. The people who ran the festival
+  // know who ought to be read first better than anyone, and the ones most
+  // likely to be moved up are not the ones holding a password.
+  const canOrder = canWrite;
 
   const [people, setPeople] = useState<Volunteer[] | null>(null);
   const [adding, setAdding] = useState(false);

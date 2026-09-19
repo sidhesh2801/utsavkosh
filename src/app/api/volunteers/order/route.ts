@@ -16,9 +16,9 @@ import { GENERATOR_COOKIE, sessionRole } from "@/lib/generator-auth";
  * reordering at once cannot interleave into something neither of them chose —
  * the last save wins, whole.
  *
- * Committee only. Adding yourself is one thing; deciding whose contribution is
- * listed first is the committee's call, and it is the kind of change everyone
- * else sees.
+ * Either sign-in. The people who ran the festival know better than anyone who
+ * ought to be read first — and the ones most likely to be moved to the top,
+ * the senior citizens and the families, are not the ones holding a password.
  */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,10 +33,10 @@ const BLOCK = 1000;
 export async function POST(request: Request) {
   const cookie = request.headers.get("cookie") ?? "";
   const match = cookie.match(new RegExp(`${GENERATOR_COOKIE}=([^;]+)`));
-  if ((await sessionRole(match?.[1])) !== "committee") {
+  if (!(await sessionRole(match?.[1]))) {
     return NextResponse.json(
-      { error: "Only the committee can reorder the credits." },
-      { status: 403 },
+      { error: "Sign in as a volunteer to reorder the credits." },
+      { status: 401 },
     );
   }
   if (!SUPABASE_URL || !SERVICE_KEY) {

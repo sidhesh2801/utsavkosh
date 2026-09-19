@@ -154,6 +154,17 @@ export async function POST(request: Request) {
     );
   }
 
+  // At the end of the page, not the top. Columns default to 0, which is the
+  // first position — so without this every new person jumps the queue past
+  // everyone already thanked.
+  const { data: last } = await db
+    .from("volunteers")
+    .select("sort")
+    .order("sort", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const sort = Number(last?.sort ?? 0) + 1000;
+
   const { data: activity } = await db
     .from("activities")
     .select("id")
@@ -168,7 +179,7 @@ export async function POST(request: Request) {
   // page reloads the list afterwards regardless, so the row is not needed.
   const { data, error } = await db
     .from("volunteers")
-    .insert({ ...v, activity_id: activity?.id ?? null })
+    .insert({ ...v, sort, activity_id: activity?.id ?? null })
     .select("id")
     .single();
 
