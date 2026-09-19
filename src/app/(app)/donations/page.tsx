@@ -24,8 +24,8 @@ function Scoped() {
     <FundsView
       only="donations"
       activityId={activityId}
-      title="Donations"
-      subtitle="Every contribution received, with the flat where we have it. Open to all residents."
+      title="Donations and Receipts"
+      subtitle=""
     />
   );
 }

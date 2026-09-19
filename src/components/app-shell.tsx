@@ -58,7 +58,8 @@ const NAV: NavItem[] = [
   },
   {
     href: "/donations",
-    label: "Donations",
+    label: "Donations and Receipts",
+    // The bottom bar on a phone has room for a word, not four.
     short: "Donations",
     icon: icon(
       <>

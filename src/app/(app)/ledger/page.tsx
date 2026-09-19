@@ -25,7 +25,6 @@ function Scoped() {
       only="expenses"
       activityId={activityId}
       title="Ledger"
-      subtitle="Where every rupee went — item, vendor and bill number — and what is left."
     />
   );
 }
