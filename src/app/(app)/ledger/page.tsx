@@ -25,6 +25,7 @@ function Scoped() {
       only="expenses"
       activityId={activityId}
       title="Ledger"
+      subtitle=""
     />
   );
 }
