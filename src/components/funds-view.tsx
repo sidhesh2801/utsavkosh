@@ -677,15 +677,21 @@ function ExpensesTab({ isAdmin, pinned }: { isAdmin: boolean; pinned?: string })
             </option>
           ))}
         </select>
-        <ExportCsv
-          label="Download CSV"
-          kind="expenses"
-          headers={[
-            "Date", "Item", "Category", "Vendor", "Bill no.",
-            "Amount (INR)", "Method", "Paid by", "Bill attached", "For",
-          ]}
-          rows={csvRows}
-        />
+        {/* Committee only, as on the donations list. The page shows the
+            spending; the file also carries who paid and whether a bill is on
+            file, which is the committee's working detail rather than the
+            society's record. */}
+        {committee.authenticated ? (
+          <ExportCsv
+            label="Download CSV"
+            kind="expenses"
+            headers={[
+              "Date", "Item", "Category", "Vendor", "Bill no.",
+              "Amount (INR)", "Method", "Paid by", "Bill attached", "For",
+            ]}
+            rows={csvRows}
+          />
+        ) : null}
         <div className="ml-auto flex items-center gap-2">
           {canEdit ? (
             <AddExpenseButton onSaved={() => window.location.reload()} />
