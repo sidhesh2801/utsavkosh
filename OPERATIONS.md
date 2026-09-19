@@ -229,25 +229,26 @@ appear under, so a new kind of job starts a new section on the page.
 Each person can attach their own photo to their credit. Optional — where
 there's none, their initial stands in.
 
-**The photo wall** above the names comes from two places, and they sit
-side by side:
+**The photo wall** above the names is all uploaded through the app. Anyone
+signed in taps *Add photos*, picks as many as they like, and they are on the
+page; each tile then carries a small × to take it down again. `.jpg .jpeg .png
+.webp .heic`, 10 MB a photo, 200 in the bucket.
 
-- **Uploaded through the app.** Anyone signed in taps *Add photos*, picks as
-  many as they like, and they are on the page. They go to the public `collage`
-  bucket in Supabase, and can be removed from the full-screen view.
-- **`public/collage/` in the repo.** Drop pictures in, push, done — in filename
-  order, so `01-handi.jpg`, `02-prasad.jpg` controls it. This half is read at
-  build time, so it needs a deploy; pushing the files *is* the deploy, so it
-  only bites if someone uploads through the Vercel dashboard and wonders why
-  nothing changed.
+There used to be a second source — a `public/collage/` folder read at build
+time — and it was removed. Half the wall could be added to and not deleted,
+with nothing on screen explaining which half, which reads as a broken button
+rather than a rule. The sixteen photographs that were in it were uploaded to
+the bucket like everyone else's. They are still in git history if the bucket
+is ever emptied by accident.
 
-Anything `.jpg .jpeg .png .webp .heic` counts, 10 MB a photo, 200 in the
-bucket.
+Both buckets (`collage`, `faces`) are **public**, which is the point — an image
+behind a URL that expires is an image that stops loading. So nothing private
+should go in them, and a URL that has been shared keeps working after the photo
+is removed from the page.
 
-Both collage buckets (`collage`, `faces`) are **public**, which is the point —
-an image behind a URL that expires is an image that stops loading. So nothing
-private should go in them. There is no way to tell from the app that a photo
-was uploaded rather than committed, which is deliberate; the wall is one wall.
+Sign out from the bottom of the thanks page. Worth mentioning when handing the
+password out: it is shared, so the app knows *a* volunteer did something and
+never *which*, and anyone holding it can edit or remove anyone else's entry.
 
 ### Spending
 

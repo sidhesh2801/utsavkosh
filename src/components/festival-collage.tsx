@@ -7,10 +7,12 @@ import { useToast } from "@/components/ui";
 /**
  * The festival, as a wall of photographs.
  *
- * Two sources, deliberately. The ones in `public/collage/` are committed to the
- * repository and are there on the first paint; the rest were uploaded by
- * volunteers through the app and arrive a moment later. Anyone holding a photo
- * can get it onto the page — whether or not they can push a commit.
+ * One source: the `collage` bucket, everything in it uploaded through the app.
+ * It began as a folder in the repository, which put half the wall beyond the
+ * reach of the people who took the pictures — they could add photos and not
+ * delete them, and could not tell which was which. A wall where some tiles
+ * have a remove button and some do not looks broken, so the folder went and
+ * its sixteen photographs were uploaded like everyone else's.
  *
  * Pinned up rather than filed: each picture sits on a white mount at a slight
  * angle, the way they would if someone had put them on a noticeboard. The tilt
@@ -27,8 +29,8 @@ import { useToast } from "@/components/ui";
 
 interface Photo {
   url: string;
-  /** Set only for uploads: the object name, and so the handle to remove it. */
-  name?: string;
+  /** The object name in the bucket, and so the handle to remove it. */
+  name: string;
 }
 
 const FIRST_SHOWN = 12;
@@ -39,31 +41,23 @@ const TILT = [-2.2, 1.6, -1.1, 2.4, -1.8, 0.9, 2.1, -2.5, 1.2, -0.8, 1.9, -1.5];
 /** Varied, so the wall breathes unevenly rather than in unison. */
 const DRIFT = [7.5, 9, 8.2, 10.5, 7.9, 9.6];
 
-export function FestivalCollage({
-  photos: fromRepo,
-  canEdit,
-}: {
-  photos: string[];
-  canEdit: boolean;
-}) {
+export function FestivalCollage({ canEdit }: { canEdit: boolean }) {
   const toast = useToast();
-  const [uploaded, setUploaded] = useState<Photo[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [all, setAll] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
   const [busy, setBusy] = useState(0);
   const picker = useRef<HTMLInputElement>(null);
-
-  const photos: Photo[] = [...fromRepo.map((url) => ({ url })), ...uploaded];
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/collage");
       if (!res.ok) return;
       const d = (await res.json()) as { photos?: Photo[] };
-      setUploaded(d.photos ?? []);
+      setPhotos(d.photos ?? []);
     } catch {
-      // The repo's own photos are already on screen; an unreachable bucket
-      // should take nothing away from them.
+      // An unreachable bucket leaves an empty wall, which is the honest
+      // picture of it and better than an error where the photographs were.
     }
   }, []);
 
@@ -144,12 +138,9 @@ export function FestivalCollage({
       {photos.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {shown.map((p, i) => (
-            <button
+            <div
               key={p.url}
-              type="button"
-              onClick={() => setOpen(i)}
-              aria-label={`Open photograph ${i + 1} of ${photos.length}`}
-              className="collage-tile relative block rounded-[10px] bg-surface p-1.5 shadow-sm ring-1 ring-line"
+              className="collage-tile relative rounded-[10px] bg-surface p-1.5 shadow-sm ring-1 ring-line"
               style={
                 {
                   "--tilt": `${TILT[i % TILT.length]}deg`,
@@ -158,16 +149,46 @@ export function FestivalCollage({
                 } as React.CSSProperties
               }
             >
-              <span className="relative block aspect-square overflow-hidden rounded-[6px] bg-surface-sunken">
-                <Image
-                  src={p.url}
-                  alt=""
-                  fill
-                  sizes="(min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
-                  className="object-cover"
-                />
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setOpen(i)}
+                aria-label={`Open photograph ${i + 1} of ${photos.length}`}
+                className="relative block w-full"
+              >
+                <span className="relative block aspect-square overflow-hidden rounded-[6px] bg-surface-sunken">
+                  <Image
+                    src={p.url}
+                    alt=""
+                    fill
+                    sizes="(min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
+                    className="object-cover"
+                  />
+                </span>
+              </button>
+
+              {/* On the tile, not tucked inside the full-screen view: the
+                  person who has just uploaded the wrong picture is looking at
+                  the wall, and asking them to open it first to get rid of it
+                  is a step invented by the layout. Always visible rather than
+                  on hover, because a phone has no hover. */}
+              {canEdit ? (
+                <button
+                  type="button"
+                  aria-label="Remove this photo"
+                  onClick={() => void remove(p.name)}
+                  className="absolute -right-1.5 -top-1.5 grid h-7 w-7 place-items-center rounded-full bg-surface text-ink-soft shadow-sm ring-1 ring-line transition-colors hover:bg-debit-soft hover:text-debit"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path
+                      d="M6 6l12 12M18 6L6 18"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : null}
@@ -241,14 +262,14 @@ export function FestivalCollage({
 
           <p className="absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-0 right-0 text-center text-xs text-white/70">
             {open + 1} of {photos.length} · tap anywhere to close
-            {canEdit && photos[open].name ? (
+            {canEdit ? (
               <>
                 {" · "}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void remove(photos[open].name!);
+                    void remove(photos[open].name);
                   }}
                   className="font-medium text-white/90 underline underline-offset-2"
                 >

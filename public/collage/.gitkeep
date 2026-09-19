@@ -1,7 +1,0 @@
-Drop festival photos in this folder.
-
-Anything ending .jpg .jpeg .png .webp .avif is picked up; the collage is
-built from whatever is here when the site builds, in filename order. Name
-them 01-handi.jpg, 02-prasad.jpg and so on to control the order.
-
-Dotfiles are ignored, so this one does not appear.
