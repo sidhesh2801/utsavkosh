@@ -115,10 +115,16 @@ export function Flute() {
 
     /**
      * The gestures a browser accepts as "the visitor is here and doing
-     * something". Scroll is the one that usually fires first on a phone, and
-     * it is passive so it cannot slow the list down.
+     * something". Scroll is the one that usually fires first on a phone.
+     *
+     * Bound on `document` in the capture phase, not on `window`: a scroll
+     * event does not bubble, so a window listener hears the page scrolling and
+     * misses a scrollable panel inside it — and this app has tables that scroll
+     * sideways on their own. Capture sees both. All passive, so none of them
+     * can slow a list down.
      */
-    const GESTURES = ["pointerdown", "touchstart", "keydown", "scroll"] as const;
+    const GESTURES = ["pointerdown", "touchstart", "keydown", "wheel", "scroll"] as const;
+    const LISTEN = { passive: true, capture: true } as const;
 
     function start() {
       if (!audio.current || refused) return;
@@ -137,7 +143,7 @@ export function Flute() {
     }
 
     function disarm() {
-      for (const g of GESTURES) window.removeEventListener(g, start);
+      for (const g of GESTURES) document.removeEventListener(g, start, LISTEN);
     }
     disarmRef.current = disarm;
 
@@ -145,7 +151,7 @@ export function Flute() {
       // Worth trying: a visitor who has used this site before may already have
       // earned the browser's permission, and then the music is simply on.
       start();
-      for (const g of GESTURES) window.addEventListener(g, start, { passive: true });
+      for (const g of GESTURES) document.addEventListener(g, start, LISTEN);
     }
 
     return () => {

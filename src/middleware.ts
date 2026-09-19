@@ -101,9 +101,16 @@ function alwaysOpen() {
  * /stamp.png, and redirecting those to the donations list left every donor's
  * receipt a blank sheet with the text on it — which is exactly what happened.
  *
+ * Audio is on this list for the same reason, learned the same way: the flute
+ * is fetched by the page rather than navigated to, so a redirect to
+ * /donations arrives as a media element that will not decode. It played for
+ * the committee and for nobody else, which is the hardest kind of fault to
+ * notice — every person who could test it was signed in.
+ *
  * Only real asset extensions, so an HTML page cannot slip through by name.
  */
-const ASSET = /\.(png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|css|js|map|webmanifest|txt|xml)$/i;
+const ASSET =
+  /\.(png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|css|js|map|webmanifest|txt|xml|mp3|m4a|aac|ogg|wav)$/i;
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
