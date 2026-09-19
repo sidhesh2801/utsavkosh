@@ -31,7 +31,7 @@ function admin() {
   });
 }
 
-const COLUMNS = "id, name, wing, flat, role, note, photo_url, created_at";
+const COLUMNS = "id, name, wing, flat, role, note, photo_url, sort, created_at";
 
 interface Body {
   id?: string;
@@ -52,15 +52,21 @@ export async function GET() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const read = (columns: string) =>
-    supabase.from("volunteers").select(columns).order("created_at").limit(1000);
+  const read = (columns: string, by: string) =>
+    supabase.from("volunteers").select(columns).order(by).order("created_at").limit(1000);
 
-  let { data, error } = await read(COLUMNS);
+  let { data, error } = await read(COLUMNS, "sort");
 
-  // Migration 013 adds photo_url. Between deploying this and running it, the
-  // select above fails on the missing column — and the thanks page going blank
-  // over a picture nobody has uploaded yet is a bad trade. Ask again without it.
-  if (error) ({ data, error } = await read(COLUMNS.replace(", photo_url", "")));
+  // Migrations 013 and 014 add photo_url and sort. Between deploying this and
+  // running them the select fails on the missing column, and the thanks page
+  // going blank over an ordering nobody has set yet is a bad trade. Fall back
+  // to what is certainly there.
+  if (error) {
+    ({ data, error } = await read(
+      COLUMNS.replace(", photo_url", "").replace(", sort", ""),
+      "created_at",
+    ));
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -74,6 +80,7 @@ export async function GET() {
       role: String(v.role),
       note: v.note ? String(v.note) : "",
       photoUrl: v.photo_url ? String(v.photo_url) : "",
+      sort: Number(v.sort ?? 0),
     })),
   });
 }

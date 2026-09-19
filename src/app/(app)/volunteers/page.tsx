@@ -22,6 +22,7 @@ interface Volunteer {
   role: string;
   note: string;
   photoUrl: string;
+  sort: number;
 }
 
 /**
@@ -46,6 +47,9 @@ export default function VolunteersPage() {
   // volunteer who listed themselves twice shouldn't have to find a committee
   // member to undo it.
   const canWrite = session.role !== null;
+  // Reordering is the committee's. Adding yourself is one thing; deciding
+  // whose contribution is read first is a decision about everybody.
+  const canOrder = session.authenticated;
 
   const [people, setPeople] = useState<Volunteer[] | null>(null);
   const [adding, setAdding] = useState(false);
@@ -63,8 +67,11 @@ export default function VolunteersPage() {
     return () => clearTimeout(t);
   }, [load]);
 
-  // Groups in the order their first member was added, so the page doesn't
-  // reshuffle itself every time somebody new signs up.
+  /**
+   * Sections in the order the committee set, which the API has already sorted
+   * by — a Map keeps insertion order, so grouping preserves it. A section's
+   * place is its first member's, and everyone in it moves together.
+   */
   const groups = useMemo(() => {
     const by = new Map<string, Volunteer[]>();
     for (const v of people ?? []) {
@@ -75,6 +82,37 @@ export default function VolunteersPage() {
     }
     return [...by.entries()];
   }, [people]);
+
+  /**
+   * Moves a section and saves the whole new order at once. Optimistic, because
+   * a list that pauses before it moves feels broken — if the save fails the
+   * reload in the catch puts it back where the server still has it.
+   */
+  const [saving, setSaving] = useState(false);
+  async function move(role: string, by: -1 | 1) {
+    const roles = groups.map(([r]) => r);
+    const from = roles.indexOf(role);
+    const to = from + by;
+    if (from < 0 || to < 0 || to >= roles.length) return;
+    roles.splice(to, 0, ...roles.splice(from, 1));
+
+    // Renumber locally on the same rule the server uses, so the page reorders
+    // under the finger rather than after the round trip.
+    setPeople((current) =>
+      [...(current ?? [])]
+        .map((v) => ({ ...v, sort: roles.indexOf(v.role.trim() || "Helped out") * 1000 }))
+        .sort((a, b) => a.sort - b.sort),
+    );
+
+    setSaving(true);
+    const res = await fetch("/api/volunteers/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roles }),
+    });
+    setSaving(false);
+    if (!res.ok) void load();
+  }
 
   if (!people) return null;
 
@@ -97,12 +135,30 @@ export default function VolunteersPage() {
 
       {people.length ? (
         <div className="space-y-7">
-          {groups.map(([role, members]) => (
+          {groups.map(([role, members], index) => (
             <section key={role}>
               <div className="mb-2.5 flex items-baseline justify-between gap-3 border-b border-line pb-1.5">
                 <SectionTitle>{role}</SectionTitle>
-                <span className="tnum shrink-0 text-[0.6875rem] text-ink-faint">
-                  {members.length === 1 ? "1 person" : `${members.length} people`}
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="tnum text-[0.6875rem] text-ink-faint">
+                    {members.length === 1 ? "1 person" : `${members.length} people`}
+                  </span>
+                  {canOrder && groups.length > 1 ? (
+                    <span className="flex items-center gap-0.5">
+                      <Move
+                        dir="up"
+                        disabled={saving || index === 0}
+                        label={`Move ${role} up`}
+                        onClick={() => void move(role, -1)}
+                      />
+                      <Move
+                        dir="down"
+                        disabled={saving || index === groups.length - 1}
+                        label={`Move ${role} down`}
+                        onClick={() => void move(role, 1)}
+                      />
+                    </span>
+                  ) : null}
                 </span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -200,6 +256,40 @@ export default function VolunteersPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+/** One nudge up or down the page, for a whole section at a time. */
+function Move({
+  dir,
+  disabled,
+  label,
+  onClick,
+}: {
+  dir: "up" | "down";
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="grid h-6 w-6 place-items-center rounded-md border border-line text-ink-soft transition-colors hover:bg-sunken hover:text-ink disabled:opacity-30"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d={dir === "up" ? "M12 19V6M5 12l7-7 7 7" : "M12 5v13M5 12l7 7 7-7"}
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
   );
 }
 
