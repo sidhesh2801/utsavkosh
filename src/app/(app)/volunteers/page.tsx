@@ -172,10 +172,10 @@ export default function VolunteersPage() {
                 {members.map((v) => (
                   <Card key={v.id} className="p-4">
                     <div className="flex items-start gap-3">
-                      {/* Optional, and a missing one must not read as a fault:
-                          plenty of people will not want their face on a page
-                          the whole society can open. Their initial stands in. */}
-                      <Face name={v.name} url={v.photoUrl} />
+                      {/* Optional. Plenty of people will not want their face
+                          on a page the whole society can open, and several of
+                          these entries are groups with no face to give. */}
+                      <Face url={v.photoUrl} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-3">
                           <p className="min-w-0 text-[0.9375rem] font-semibold text-ink">
@@ -338,30 +338,22 @@ function SignOut() {
 }
 
 /**
- * A volunteer's picture, or the letter their name starts with.
+ * A volunteer's picture, where there is one, and nothing where there is not.
  *
- * The fallback is not a placeholder-person icon. Forty identical grey
- * silhouettes read as forty missing photographs; forty initials read as a list
- * of people. A photo here is optional and should stay comfortable to skip.
+ * There used to be an initial in a circle instead. That reads fine for a
+ * person — "P" for Prashant — but several of these entries are whole groups,
+ * and an "A" standing in for "All Wellington Families & Devotees" is a letter
+ * meaning nothing, sitting where a face should be. Better an even left margin
+ * than a placeholder that has to be explained.
  */
-function Face({ name, url, size = 44 }: { name: string; url?: string; size?: number }) {
-  if (url) {
-    return (
-      <span
-        className="relative block shrink-0 overflow-hidden rounded-full bg-surface-sunken ring-1 ring-line"
-        style={{ width: size, height: size }}
-      >
-        <Image src={url} alt="" fill sizes={`${size}px`} className="object-cover" />
-      </span>
-    );
-  }
+function Face({ url, size = 44 }: { url?: string; size?: number }) {
+  if (!url) return null;
   return (
     <span
-      aria-hidden
-      className="grid shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-brand-ink"
-      style={{ width: size, height: size, fontSize: size * 0.4 }}
+      className="relative block shrink-0 overflow-hidden rounded-full bg-surface-sunken ring-1 ring-line"
+      style={{ width: size, height: size }}
     >
-      {name.trim().charAt(0).toUpperCase() || "?"}
+      <Image src={url} alt="" fill sizes={`${size}px`} className="object-cover" />
     </span>
   );
 }
@@ -496,7 +488,24 @@ function VolunteerSheet({
     >
       <form onSubmit={submit} className="space-y-3.5">
         <div className="flex items-center gap-3.5">
-          <Face name={name || "?"} url={photoUrl} size={56} />
+          {photoUrl ? (
+            <Face url={photoUrl} size={56} />
+          ) : (
+            <span
+              aria-hidden
+              className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-ink-faint"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 8h3l1.5-2h7L17 8h3v11H4z"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinejoin="round"
+                />
+                <circle cx="12" cy="13" r="3.2" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+            </span>
+          )}
           <div className="min-w-0">
             <input
               ref={picker}
