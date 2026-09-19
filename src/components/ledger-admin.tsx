@@ -14,18 +14,33 @@ import type { Donation, Expense } from "@/lib/types";
  * This only decides whether to render the controls — the server checks again
  * on every write, because hiding a button is not a permission.
  */
-export function useCommitteeSession(): { authenticated: boolean; checked: boolean } {
-  const [state, setState] = useState({ authenticated: false, checked: false });
+/**
+ * `authenticated` is the committee and only the committee, because that is
+ * what every screen calling this already means by it. `role` is there for the
+ * thanks page, which the volunteers' password also opens.
+ */
+export function useCommitteeSession(): {
+  authenticated: boolean;
+  role: "committee" | "volunteer" | null;
+  checked: boolean;
+} {
+  const [state, setState] = useState<{
+    authenticated: boolean;
+    role: "committee" | "volunteer" | null;
+    checked: boolean;
+  }>({ authenticated: false, role: null, checked: false });
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/session")
       .then((r) => r.json())
-      .then((d: { authenticated?: boolean }) => {
-        if (!cancelled) setState({ authenticated: !!d.authenticated, checked: true });
+      .then((d: { authenticated?: boolean; role?: "committee" | "volunteer" | null }) => {
+        if (!cancelled) {
+          setState({ authenticated: !!d.authenticated, role: d.role ?? null, checked: true });
+        }
       })
       .catch(() => {
-        if (!cancelled) setState({ authenticated: false, checked: true });
+        if (!cancelled) setState({ authenticated: false, role: null, checked: true });
       });
     return () => {
       cancelled = true;

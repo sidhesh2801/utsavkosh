@@ -1,23 +1,31 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { GENERATOR_COOKIE, isValidSessionToken } from "@/lib/generator-auth";
+import { GENERATOR_COOKIE, type Role, sessionRole } from "@/lib/generator-auth";
 
 /**
  * The volunteers credited on the festival page.
  *
- * Reading is open, because a thank-you nobody can see is not one. Writing is
- * the committee's: anyone could otherwise add themselves, and a credits page
- * that can be self-served stops meaning anything.
+ * Reading is open, because a thank-you nobody can see is not one.
+ *
+ * Writing needs a sign-in, but not the committee's. There is a second
+ * password — `volunteer` — that opens this page and nothing else, so the
+ * people who ran the festival can write their own line without being handed
+ * the ledger and the receipt generator along with it. What they write is
+ * published straight away; nobody is standing between a volunteer and their
+ * own two sentences.
+ *
+ * Removing an entry stays the committee's, because a shared password is a
+ * shared password and the credits should not be one bad afternoon from empty.
  */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-async function authorised(request: Request): Promise<boolean> {
+async function roleOf(request: Request): Promise<Role | null> {
   const cookie = request.headers.get("cookie") ?? "";
   const match = cookie.match(new RegExp(`${GENERATOR_COOKIE}=([^;]+)`));
-  return isValidSessionToken(match?.[1]);
+  return sessionRole(match?.[1]);
 }
 
 function admin() {
@@ -65,22 +73,31 @@ export async function GET() {
   });
 }
 
+const SIGN_IN = "Sign in as a volunteer to write on this page.";
+
+/**
+ * Caps. Long enough for two honest sentences and short enough that a shared
+ * password cannot be used to publish an essay.
+ */
+const LIMIT = { name: 60, role: 60, note: 400 };
+
 function parse(body: Body) {
-  const name = (body.name ?? "").trim();
-  const role = (body.role ?? "").trim();
+  const name = (body.name ?? "").trim().slice(0, LIMIT.name);
+  const role = (body.role ?? "").trim().slice(0, LIMIT.role);
   const flat = (body.flat ?? "").trim().toUpperCase().match(/^([A-Z]*)[-\s]?(\d{3,4})$/);
   return {
     name,
     role,
-    wing: (body.wing ?? "").trim().toUpperCase() || flat?.[1] || null,
+    wing: (body.wing ?? "").trim().toUpperCase().slice(0, 4) || flat?.[1] || null,
     flat: flat?.[2] ?? (body.flat ?? "").replace(/\D/g, "") ?? null,
-    note: (body.note ?? "").trim() || null,
+    note: (body.note ?? "").trim().slice(0, LIMIT.note) || null,
   };
 }
 
+/** Either sign-in. Published immediately — there is no approval step. */
 export async function POST(request: Request) {
-  if (!(await authorised(request))) {
-    return NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+  if (!(await roleOf(request))) {
+    return NextResponse.json({ error: SIGN_IN }, { status: 401 });
   }
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json({ error: "The register isn't reachable." }, { status: 503 });
@@ -131,9 +148,10 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, volunteer: data });
 }
 
+/** Either sign-in: a volunteer fixing their own wording shouldn't need help. */
 export async function PATCH(request: Request) {
-  if (!(await authorised(request))) {
-    return NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+  if (!(await roleOf(request))) {
+    return NextResponse.json({ error: SIGN_IN }, { status: 401 });
   }
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json({ error: "The register isn't reachable." }, { status: 503 });
@@ -156,9 +174,18 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
+/**
+ * Committee only. Adding and editing are open to the volunteers' password, but
+ * that password will be shared around a WhatsApp group, and the difference
+ * between a wrong sentence and a missing person is that one of them is
+ * recoverable from the screen.
+ */
 export async function DELETE(request: Request) {
-  if (!(await authorised(request))) {
-    return NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+  if ((await roleOf(request)) !== "committee") {
+    return NextResponse.json(
+      { error: "Only the committee can remove someone." },
+      { status: 403 },
+    );
   }
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json({ error: "The register isn't reachable." }, { status: 503 });

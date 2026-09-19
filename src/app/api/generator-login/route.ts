@@ -18,7 +18,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not read the request." }, { status: 400 });
   }
 
-  if (!checkCredentials(body.user ?? "", body.password ?? "")) {
+  const role = checkCredentials(body.user ?? "", body.password ?? "");
+  if (!role) {
     // Deliberately vague: don't reveal which half was wrong.
     return NextResponse.json(
       { error: "That username and password don't match." },
@@ -26,8 +27,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(GENERATOR_COOKIE, await createSessionToken(), {
+  const response = NextResponse.json({ ok: true, role });
+  response.cookies.set(GENERATOR_COOKIE, await createSessionToken(role), {
     httpOnly: true, // not readable by scripts, so an injected script can't steal it
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

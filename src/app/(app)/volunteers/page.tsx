@@ -1,7 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Button, Card, EmptyState, Field, PageHeader, Sheet, useToast } from "@/components/ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  PageHeader,
+  SectionTitle,
+  Sheet,
+  useToast,
+} from "@/components/ui";
 import { useCommitteeSession } from "@/components/ledger-admin";
 
 interface Volunteer {
@@ -20,12 +29,19 @@ interface Volunteer {
  * society that publishes its money and not its volunteers has said something
  * about what it counts.
  *
- * Open to read and committee-only to add, for the same reason the donations
- * list is: a credits page anyone could add themselves to would stop meaning
- * anything by the end of the week.
+ * Grouped by what people did rather than listed flat, because that is how the
+ * festival was actually organised and because a single alphabetical column of
+ * forty names is a list nobody reads to the end of.
+ *
+ * Open to read. Writing needs the volunteers' password — a second sign-in that
+ * opens this page and nothing else — so each person writes their own two
+ * sentences instead of the committee writing forty of them from memory.
  */
 export default function VolunteersPage() {
-  const committee = useCommitteeSession();
+  const session = useCommitteeSession();
+  const canWrite = session.role !== null;
+  const canRemove = session.authenticated;
+
   const [people, setPeople] = useState<Volunteer[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Volunteer | null>(null);
@@ -42,6 +58,19 @@ export default function VolunteersPage() {
     return () => clearTimeout(t);
   }, [load]);
 
+  // Groups in the order their first member was added, so the page doesn't
+  // reshuffle itself every time somebody new signs up.
+  const groups = useMemo(() => {
+    const by = new Map<string, Volunteer[]>();
+    for (const v of people ?? []) {
+      const key = v.role.trim() || "Helped out";
+      const bucket = by.get(key);
+      if (bucket) bucket.push(v);
+      else by.set(key, [v]);
+    }
+    return [...by.entries()];
+  }, [people]);
+
   if (!people) return null;
 
   return (
@@ -50,60 +79,82 @@ export default function VolunteersPage() {
         title="With thanks"
         subtitle="The festival was run by these people. It does not happen without them."
         actions={
-          committee.authenticated ? (
+          canWrite ? (
             <Button size="sm" onClick={() => setAdding(true)}>
-              Add someone
+              Add your name
             </Button>
           ) : null
         }
       />
 
       {people.length ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {people.map((v) => (
-            <Card key={v.id} className="p-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="min-w-0 text-[0.9375rem] font-semibold text-ink">{v.name}</p>
-                {v.flat ? (
-                  <span className="tnum shrink-0 text-xs text-ink-faint">{v.flat}</span>
-                ) : null}
+        <div className="space-y-7">
+          {groups.map(([role, members]) => (
+            <section key={role}>
+              <div className="mb-2.5 flex items-baseline justify-between gap-3 border-b border-line pb-1.5">
+                <SectionTitle>{role}</SectionTitle>
+                <span className="tnum shrink-0 text-[0.6875rem] text-ink-faint">
+                  {members.length === 1 ? "1 person" : `${members.length} people`}
+                </span>
               </div>
-              <p className="mt-1 inline-flex rounded-full bg-brand-soft px-2.5 py-0.5 text-[0.6875rem] font-medium text-brand-ink">
-                {v.role}
-              </p>
-              {v.note ? (
-                <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-soft">{v.note}</p>
-              ) : null}
-              {committee.authenticated ? (
-                <p className="mt-3 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(v)}
-                    className="text-[0.6875rem] font-medium text-brand underline decoration-brand/30 underline-offset-2"
-                  >
-                    Edit
-                  </button>
-                  <RemoveVolunteer id={v.id} name={v.name} onDone={load} />
-                </p>
-              ) : null}
-            </Card>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {members.map((v) => (
+                  <Card key={v.id} className="p-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="min-w-0 text-[0.9375rem] font-semibold text-ink">{v.name}</p>
+                      {v.flat ? (
+                        <span className="tnum shrink-0 text-xs text-ink-faint">{v.flat}</span>
+                      ) : null}
+                    </div>
+                    {v.note ? (
+                      <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-soft">
+                        {v.note}
+                      </p>
+                    ) : null}
+                    {canWrite ? (
+                      <p className="mt-3 flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(v)}
+                          className="text-[0.6875rem] font-medium text-brand underline decoration-brand/30 underline-offset-2"
+                        >
+                          Edit
+                        </button>
+                        {canRemove ? (
+                          <RemoveVolunteer id={v.id} name={v.name} onDone={load} />
+                        ) : null}
+                      </p>
+                    ) : null}
+                  </Card>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       ) : (
         <EmptyState
           title="Nobody credited yet"
           description={
-            committee.authenticated
-              ? "Add the people who helped — what they did, and a line about how."
-              : "The committee hasn't added the volunteers yet."
+            canWrite
+              ? "Add your name, what you helped with, and a line about how."
+              : "Were you part of it? Sign in as a volunteer and add yourself."
           }
-          action={
-            committee.authenticated ? (
-              <Button onClick={() => setAdding(true)}>Add someone</Button>
-            ) : undefined
-          }
+          action={canWrite ? <Button onClick={() => setAdding(true)}>Add your name</Button> : undefined}
         />
       )}
+
+      {!canWrite ? (
+        <p className="mt-8 text-center text-xs text-ink-faint">
+          Helped with the festival?{" "}
+          <a
+            href="/generator-login?next=%2Fvolunteers"
+            className="font-medium text-brand underline decoration-brand/30 underline-offset-2"
+          >
+            Sign in as a volunteer
+          </a>{" "}
+          to add your name.
+        </p>
+      ) : null}
 
       {adding ? (
         <VolunteerSheet
@@ -161,6 +212,21 @@ function RemoveVolunteer({
   );
 }
 
+/**
+ * Suggestions rather than a fixed list: the festival threw up jobs nobody
+ * planned for, and a dropdown would have made those people pick the nearest
+ * wrong answer. Typing a new one starts a new section.
+ */
+const TEAMS = [
+  "Food counter",
+  "Decoration",
+  "Sound and stage",
+  "Rituals and puja",
+  "Collections",
+  "Dahi handi",
+  "Setup and cleanup",
+];
+
 function VolunteerSheet({
   onClose,
   onSaved,
@@ -201,7 +267,7 @@ function VolunteerSheet({
     <Sheet
       open
       onClose={onClose}
-      title={existing ? "Edit" : "Add someone"}
+      title={existing ? "Edit" : "Add your name"}
       description="Shown to every resident. No phone numbers — this is a thank-you, not a contact list."
       footer={
         <>
@@ -223,6 +289,7 @@ function VolunteerSheet({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                maxLength={60}
                 placeholder="e.g. Anup Deo"
               />
             </Field>
@@ -232,28 +299,37 @@ function VolunteerSheet({
               className="field tnum"
               value={flat}
               onChange={(e) => setFlat(e.target.value)}
+              maxLength={8}
               placeholder="N-130"
             />
           </Field>
         </div>
 
-        <Field label="What they helped with" required hint="A few words.">
+        <Field label="What you helped with" required hint="This becomes the heading you appear under.">
           <input
             className="field"
             value={role}
             onChange={(e) => setRole(e.target.value)}
             required
+            maxLength={60}
+            list="volunteer-teams"
             placeholder="e.g. Food counter"
           />
+          <datalist id="volunteer-teams">
+            {TEAMS.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
         </Field>
 
-        <Field label="How they helped" hint="A sentence. This is the part people read.">
+        <Field label="How you helped" hint="A line or two, in your own words. This is the part people read.">
           <textarea
             className="field resize-y"
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="e.g. Served at the counter both evenings and stayed back to clear up."
+            maxLength={400}
+            placeholder="e.g. Served at the counter both evenings and stayed back to clear up after the handi."
           />
         </Field>
 

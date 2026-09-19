@@ -4,11 +4,16 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 /**
- * Sign-in for the receipt generator.
+ * Sign-in, for the committee and for the volunteers.
  *
  * Standalone rather than part of the main app shell, because the people using
- * the generator are volunteers who may have no society account at all — they
- * just need to be someone the committee handed the password to.
+ * it may have no society account at all — they just need to be someone who was
+ * handed a password.
+ *
+ * One form, two doors. Which one opens is decided on the server by the
+ * credentials, so the page never has to ask "who are you?" before the person
+ * has proved it: the volunteers' password reaches the thanks page and the
+ * committee's reaches everything.
  */
 export default function GeneratorLoginPage() {
   return (
@@ -21,6 +26,8 @@ export default function GeneratorLoginPage() {
 function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") || "/receipt-generator.html";
+  /** Arrived from the thanks page, so say so rather than "Receipt generator". */
+  const forThanks = next.startsWith("/volunteers");
 
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
@@ -37,15 +44,20 @@ function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user, password }),
       });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string; role?: string };
       if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as { error?: string };
         setError(payload.error ?? "That didn't work. Try again.");
         setBusy(false);
         return;
       }
       // A full navigation, not a client route change: the target is a static
       // file behind middleware, which the router can't fetch itself.
-      window.location.href = next;
+      //
+      // A volunteer always lands on the thanks page. Sending them to whatever
+      // `next` said would drop them on the receipt generator, which their
+      // password does not open — a successful sign-in that looks like a
+      // failure.
+      window.location.href = payload.role === "volunteer" ? "/volunteers" : next;
     } catch {
       setError("Couldn't reach the server. Check your connection.");
       setBusy(false);
@@ -69,9 +81,13 @@ function LoginForm() {
             <path d="M9.5 8.5h5M9.5 12.5h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           </svg>
         </span>
-        <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">Receipt generator</h1>
+        <h1 className="text-xl font-semibold tracking-[-0.01em] text-ink">
+          {forThanks ? "Volunteer sign in" : "Receipt generator"}
+        </h1>
         <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-          For committee members and collection volunteers. Ask the secretary for the password.
+          {forThanks
+            ? "To add your name and what you helped with. Ask the committee for the volunteer password."
+            : "For committee members and collection volunteers. Ask the secretary for the password."}
         </p>
       </div>
 
