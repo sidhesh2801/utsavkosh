@@ -89,10 +89,10 @@ export default function VolunteersPage() {
    * reload in the catch puts it back where the server still has it.
    */
   const [saving, setSaving] = useState(false);
-  async function move(role: string, by: -1 | 1) {
+  async function move(role: string, by: -1 | 1 | "top") {
     const roles = groups.map(([r]) => r);
     const from = roles.indexOf(role);
-    const to = from + by;
+    const to = by === "top" ? 0 : from + by;
     if (from < 0 || to < 0 || to >= roles.length) return;
     roles.splice(to, 0, ...roles.splice(from, 1));
 
@@ -145,6 +145,12 @@ export default function VolunteersPage() {
                   </span>
                   {canOrder && groups.length > 1 ? (
                     <span className="flex items-center gap-0.5">
+                      <Move
+                        dir="top"
+                        disabled={saving || index === 0}
+                        label={`Move ${role} to the top`}
+                        onClick={() => void move(role, "top")}
+                      />
                       <Move
                         dir="up"
                         disabled={saving || index === 0}
@@ -259,18 +265,30 @@ export default function VolunteersPage() {
   );
 }
 
-/** One nudge up or down the page, for a whole section at a time. */
+/**
+ * Moving a section: one step up, one step down, or straight to the top.
+ *
+ * The jump exists because most people here describe what they did in their own
+ * words, so nearly every section holds one person. Getting the senior citizens
+ * from thirteenth to first would otherwise be twelve taps of an arrow.
+ */
 function Move({
   dir,
   disabled,
   label,
   onClick,
 }: {
-  dir: "up" | "down";
+  dir: "top" | "up" | "down";
   disabled: boolean;
   label: string;
   onClick: () => void;
 }) {
+  const path =
+    dir === "top"
+      ? "M5 4h14M12 20V9M7 13l5-5 5 5"
+      : dir === "up"
+        ? "M12 19V6M5 12l7-7 7 7"
+        : "M12 5v13M5 12l7 7 7-7";
   return (
     <button
       type="button"
@@ -282,7 +300,7 @@ function Move({
     >
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path
-          d={dir === "up" ? "M12 19V6M5 12l7-7 7 7" : "M12 5v13M5 12l7 7 7-7"}
+          d={path}
           stroke="currentColor"
           strokeWidth="2.2"
           strokeLinecap="round"
