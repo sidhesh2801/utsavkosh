@@ -80,6 +80,16 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    href: "/volunteers",
+    label: "With thanks",
+    short: "Thanks",
+    icon: icon(
+      <>
+        <path d="M12 20s-7-4.35-7-9.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5C19 15.65 12 20 12 20z" />
+      </>,
+    ),
+  },
+  {
     href: "/food-coupon",
     label: "Food coupon",
     short: "Food",
