@@ -213,6 +213,28 @@ The WhatsApp message is written three times over — Marathi, Hindi, English —
 it is generated, never edited by hand. It had already drifted once, still
 showing 104 donors and Rs 74,344 when the app held 175 and Rs 1,23,355.
 
+### The thanks page and its photos
+
+**`/volunteers`** is open for anyone to read. Writing needs a sign-in, but not
+the committee's: there is a second password, `volunteer` / `volunteer@2026`
+(override with `VOLUNTEER_USER` and `VOLUNTEER_PASSWORD`), which opens that one
+page and nothing else. Hand it round the volunteers' group and each person adds
+their own name, what they helped with, and a line or two about how. No approval
+step — what they write is published as they write it — and they can edit or
+remove their own entry.
+
+Whatever someone types in *What you helped with* becomes the heading they
+appear under, so a new kind of job starts a new section on the page.
+
+The photo wall above it is built from **`public/collage/`**. Drop the pictures
+in, push, and they are on the page, in filename order — name them
+`01-handi.jpg`, `02-prasad.jpg` to control it. Anything `.jpg .jpeg .png .webp
+.avif` counts.
+
+**It is read at build time, so a new photo needs a deploy.** Pushing the files
+is the deploy, so in practice this only matters if someone uploads them through
+the Vercel dashboard and wonders why nothing changed.
+
 ### Spending
 
 **Sign in → Ledger → Add expense.** Vendor and bill number are public; the
