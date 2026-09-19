@@ -7,6 +7,7 @@ import { useSociety } from "@/lib/store";
 import { flatLabel } from "@/lib/format";
 import { Avatar, Badge, Skeleton } from "./ui";
 import { useCommitteeSession } from "./ledger-admin";
+import { Flute } from "./flute";
 
 interface NavItem {
   href: string;
@@ -271,6 +272,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           {/* Bottom padding clears the phone's tab bar, which is fixed over
               the last few rows of the page. */}
+          <Flute />
+
           <footer className="mt-10 border-t border-line pb-24 pt-5 text-center md:pb-6">
             <p className="text-[0.6875rem] leading-relaxed text-ink-faint">
               UtsavKosh · built for {data.society.name} by Sidhesh Kumar
