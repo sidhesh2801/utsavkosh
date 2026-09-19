@@ -3,16 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * A flute, if the resident wants one.
+ * A flute, playing as soon as the browser will let it.
  *
- * Off every time the page loads, and there is no setting that changes that.
- * Browsers block sound that starts on its own, which is the right instinct
- * written into the platform: somebody opens the ledger on a bus, in an office,
- * next to a sleeping child. A festival page is not worth that.
+ * It tries the moment the page loads. That almost always fails, and not
+ * because of a bug: every browser refuses sound that no one asked for, and
+ * `play()` rejects. So the second attempt is armed behind the first touch,
+ * click, key or scroll anywhere on the page — the gesture the browser is
+ * waiting for. In practice somebody scrolls the donations list within a second
+ * or two and the flute comes in then, which is as close to automatic as the
+ * platform permits. There is no trick that gets past this, only muted
+ * playback, which is not music.
  *
- * So it is a button. Tap once and it plays; the choice is remembered, but only
- * so the button comes back pressed — the audio still waits for a tap, because
- * a remembered preference is not the same as permission on this page load.
+ * Whoever turns it off is not asked twice: that choice is remembered, and the
+ * auto-start is skipped on their next visit until they press the button again.
  *
  * Once playing it stays playing for as long as the page is open: it loops, it
  * survives moving between Donations, Ledger and Thanks (this lives in the app
@@ -20,7 +23,28 @@ import { useEffect, useRef, useState } from "react";
  * interrupts it. Closing the tab is what stops it.
  */
 
-const SRC = "/flute.mp3";
+/**
+ * Two encodings of the same three minutes, best first.
+ *
+ * The track arrived as a 6.8 MB 320 kbps stereo MP3, which is a CD master for
+ * something playing quietly under a donations list. Most of this society reads
+ * the app on a phone on mobile data, and the app must not cost them anything
+ * to look at — so the one everybody actually gets is 62 kbps mono AAC, 1.4 MB,
+ * indistinguishable at this volume. The MP3 stays only for a browser that
+ * cannot manage AAC, and is downloaded by almost nobody.
+ */
+const SOURCES = [
+  { src: "/flute.m4a", type: "audio/mp4" },
+  { src: "/flute.mp3", type: "audio/mpeg" },
+];
+
+function bestSource(): string {
+  const probe = document.createElement("audio");
+  // canPlayType answers "probably", "maybe" or "" — anything but empty is
+  // worth trying, and the MP3 is there for when nothing is.
+  return (SOURCES.find((s) => probe.canPlayType(s.type)) ?? SOURCES[1]).src;
+}
+
 const REMEMBER = "utsavkosh:flute";
 
 /** Quiet. This is background, and someone else chose to hear it, not to be told. */
@@ -34,6 +58,13 @@ export function Flute() {
    * long after the render that created them.
    */
   const wants = useRef(false);
+  /**
+   * Unhooks the waiting-for-a-gesture listeners. Held in a ref because the
+   * button has to be able to call it: someone who presses stop before their
+   * first scroll would otherwise have the music start on that scroll, having
+   * just said no.
+   */
+  const disarmRef = useRef<() => void>(() => {});
 
   const [broken, setBroken] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -46,12 +77,17 @@ export function Flute() {
   const [asked, setAsked] = useState(false);
 
   useEffect(() => {
-    setAsked(localStorage.getItem(REMEMBER) === "1");
-    const el = new Audio(SRC);
+    // Only an explicit "no" stops the auto-start. A first-time visitor has
+    // expressed nothing, and the festival page is meant to have music.
+    const refused = localStorage.getItem(REMEMBER) === "0";
+    setAsked(!refused);
+
+    const el = new Audio(bestSource());
     el.loop = true;
     el.volume = VOLUME;
-    // Nothing is fetched until the first tap. The track is a few megabytes and
-    // most visitors come for the donation list, not the music.
+    // Nothing is fetched until it is actually going to play. Someone who opens
+    // the donations list, reads it and leaves without ever scrolling pays for
+    // no audio at all; at 62 kbps, enough to start arrives almost at once.
     el.preload = "none";
     audio.current = el;
 
@@ -79,8 +115,44 @@ export function Flute() {
     el.addEventListener("error", onError);
     document.addEventListener("visibilitychange", resume);
 
+    /**
+     * The gestures a browser accepts as "the visitor is here and doing
+     * something". Scroll is the one that usually fires first on a phone, and
+     * it is passive so it cannot slow the list down.
+     */
+    const GESTURES = ["pointerdown", "touchstart", "keydown", "scroll"] as const;
+
+    function start() {
+      if (!audio.current || refused) return;
+      wants.current = true;
+      void audio.current
+        .play()
+        .then(() => {
+          setPlaying(true);
+          disarm();
+        })
+        // Refused for want of a gesture. Leave the listeners armed; the next
+        // one the visitor makes is the one that works.
+        .catch(() => {
+          wants.current = false;
+        });
+    }
+
+    function disarm() {
+      for (const g of GESTURES) window.removeEventListener(g, start);
+    }
+    disarmRef.current = disarm;
+
+    if (!refused) {
+      // Worth trying: a visitor who has used this site before may already have
+      // earned the browser's permission, and then the music is simply on.
+      start();
+      for (const g of GESTURES) window.addEventListener(g, start, { passive: true });
+    }
+
     return () => {
       wants.current = false;
+      disarm();
       el.removeEventListener("pause", onPause);
       el.removeEventListener("error", onError);
       document.removeEventListener("visibilitychange", resume);
@@ -104,6 +176,7 @@ export function Flute() {
         if (!el) return;
         if (playing) {
           wants.current = false;
+          disarmRef.current();
           el.pause();
           setPlaying(false);
           setAsked(false);
@@ -111,6 +184,8 @@ export function Flute() {
           return;
         }
         wants.current = true;
+        // Explicitly asked for, so it is no longer waiting on a gesture.
+        disarmRef.current();
         void el
           .play()
           .then(() => {
