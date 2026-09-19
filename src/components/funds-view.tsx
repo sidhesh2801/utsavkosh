@@ -24,6 +24,7 @@ import {
 } from "./ui";
 import { CategoryBars, MonthlyFlowChart } from "./charts";
 import { SpendingShare } from "./spending-share";
+import { SpendingDonut } from "./spending-donut";
 import { DonationForm, ExpenseForm, ExpenseRow } from "./entries";
 import {
   AddDonationButton,
@@ -94,7 +95,6 @@ export function FundsView({
   activityId?: string;
 } = {}) {
   const { data, isAdmin } = useSociety();
-  const committee = useCommitteeSession();
   const [tab, setTab] = useState<Tab>(only ?? "overview");
 
   const scoped = useMemo(() => {
@@ -124,24 +124,19 @@ export function FundsView({
            which undid hiding those figures from the page it sat on. */
       />
 
-      {/* Proportions rather than figures. The committee does not want the
-          ledger public yet, but "here is what it is going on" is why residents
-          were asked to contribute, and saying nothing answers that worse than
-          a share does. */}
-      {!committee.authenticated && (only === "donations" || !only) ? (
-        <SpendingShare expenses={scoped.expenses} />
-      ) : null}
+      {/* The shares, on the donations page, for a reader who came to see the
+          contributions and gets the shape of the spending on the way past. The
+          ledger itself carries the ring and the figures. */}
+      {only === "donations" ? <SpendingShare expenses={scoped.expenses} /> : null}
 
-      {/* No figures at all for a resident — not spending, not the balance, and
-          not the total collected. They read the list of contributions; what it
-          adds up to is the committee's, on their instruction. */}
-      {committee.authenticated ? (
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatTile label="Collected" value={money(summary.collected)} tone="credit" />
-          <StatTile label="Spent" value={money(summary.spent)} tone="debit" />
-          <StatTile label="Balance in hand" value={money(summary.balance)} tone="brand" />
-        </div>
-      ) : null}
+      {/* Back for everyone, now that the ledger is public: each expense is
+          listed with its amount a scroll below, so a hidden "Spent" total was
+          only ever an addition away. */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <StatTile label="Collected" value={money(summary.collected)} tone="credit" />
+        <StatTile label="Spent" value={money(summary.spent)} tone="debit" />
+        <StatTile label="Balance in hand" value={money(summary.balance)} tone="brand" />
+      </div>
 
       <div
         role="tablist"
@@ -156,7 +151,6 @@ export function FundsView({
             ["expenses", `Where it went (${scoped.expenses.length})`],
           ] as const
         )
-          .filter(([value]) => value !== "expenses" || committee.authenticated)
           .map(([value, label]) => (
           <button
             key={value}
@@ -441,14 +435,8 @@ function DonationsTab({
 
       <p className="text-[0.8125rem] text-ink-soft">
         Showing <span className="tnum font-medium text-ink">{filtered.length}</span>{" "}
-        {filtered.length === 1 ? "entry" : "entries"}
-        {/* The sum only for the committee. Left in for everyone it would put
-            back the very figure the tiles above stopped showing. */}
-        {committee.authenticated ? (
-          <>
-            {" "}totalling <span className="tnum font-medium text-ink">{money(total)}</span>
-          </>
-        ) : null}
+        {filtered.length === 1 ? "entry" : "entries"} totalling{" "}
+        <span className="tnum font-medium text-ink">{money(total)}</span>
       </p>
 
       {filtered.length ? (
@@ -649,6 +637,13 @@ function ExpensesTab({ isAdmin, pinned }: { isAdmin: boolean; pinned?: string })
 
   return (
     <div className="space-y-4">
+      {filtered.length ? (
+        <Card className="p-4">
+          <SectionTitle>Where it went</SectionTitle>
+          <SpendingDonut expenses={filtered} />
+        </Card>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <input
           className="field max-w-[16rem] flex-1"
@@ -692,14 +687,8 @@ function ExpensesTab({ isAdmin, pinned }: { isAdmin: boolean; pinned?: string })
 
       <p className="text-[0.8125rem] text-ink-soft">
         Showing <span className="tnum font-medium text-ink">{filtered.length}</span>{" "}
-        {filtered.length === 1 ? "entry" : "entries"}
-        {/* The sum only for the committee. Left in for everyone it would put
-            back the very figure the tiles above stopped showing. */}
-        {committee.authenticated ? (
-          <>
-            {" "}totalling <span className="tnum font-medium text-ink">{money(total)}</span>
-          </>
-        ) : null}
+        {filtered.length === 1 ? "entry" : "entries"} totalling{" "}
+        <span className="tnum font-medium text-ink">{money(total)}</span>
       </p>
 
       {filtered.length ? (

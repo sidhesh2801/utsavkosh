@@ -44,8 +44,9 @@ const icon = (path: ReactNode) => (
  * Everything the app can do, and the one thing anyone can do without signing
  * in.
  *
- * A resident sees Donations and nothing else — that is the whole app as far as
- * they are concerned. The rest appears once the committee signs in.
+ * A resident sees Donations and the Ledger — what came in and where it went,
+ * which is the whole point of the app. The rest appears once the committee
+ * signs in.
  */
 const NAV: NavItem[] = [
   {
@@ -70,7 +71,6 @@ const NAV: NavItem[] = [
     href: "/ledger",
     label: "Ledger",
     short: "Ledger",
-    committeeOnly: true,
     icon: icon(
       <>
         <path d="M5 3h14v18H5z" />

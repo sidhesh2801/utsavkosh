@@ -17,8 +17,8 @@ const PROTECTED = ["/receipt-generator.html", "/generator", "/food-counter"];
 /**
  * What anyone may reach without the committee password.
  *
- * The donations list and a donor's own receipt. Everything else — the home
- * page, the ledger, the festival pages, the activities, the gallery — needs a
+ * The donations list, the ledger, and a donor's own receipt. Everything else —
+ * the home page, the festival pages, the activities, the gallery — needs a
  * sign-in. Hiding the menu items was not enough: a link already shared still
  * opened the page.
  *
@@ -28,6 +28,7 @@ const PROTECTED = ["/receipt-generator.html", "/generator", "/food-counter"];
  */
 const OPEN_TO_ALL = [
   "/donations",
+  "/ledger",
   "/receipt.html",
   "/generator-login",
   "/maintenance.html",
