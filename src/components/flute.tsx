@@ -24,26 +24,24 @@ import { useEffect, useRef, useState } from "react";
  */
 
 /**
- * Two encodings of the same three minutes, best first.
+ * Two minutes of bansuri, cut to loop.
  *
- * The track arrived as a 6.8 MB 320 kbps stereo MP3, which is a CD master for
- * something playing quietly under a donations list. Most of this society reads
- * the app on a phone on mobile data, and the app must not cost them anything
- * to look at — so the one everybody actually gets is 62 kbps mono AAC, 1.4 MB,
- * indistinguishable at this volume. The MP3 stays only for a browser that
- * cannot manage AAC, and is downloaded by almost nobody.
+ * The source was a six-minute 256 kbps stereo MP3 from Pixabay, 11.7 MB. Most
+ * of this society reads the app on a phone on mobile data and it must not cost
+ * them anything to look at, so what ships is two minutes of it at 62 kbps mono
+ * AAC: 968 KB, and indistinguishable under a donations list.
+ *
+ * Two minutes because it repeats anyway. The cut is not a cut — the three
+ * seconds after the end are crossfaded back over the three seconds at the
+ * start, so playing it end-to-start is a fade rather than a join and the loop
+ * has no click in it. It also begins twenty seconds in, past the intro, which
+ * would otherwise have faded up every two minutes.
+ *
+ * AAC only, no MP3 fallback: there is no MP3 encoder on the machine that built
+ * this, and every browser made this century plays AAC in MP4. If one somehow
+ * cannot, the error handler below takes the button off the page.
  */
-const SOURCES = [
-  { src: "/flute.m4a", type: "audio/mp4" },
-  { src: "/flute.mp3", type: "audio/mpeg" },
-];
-
-function bestSource(): string {
-  const probe = document.createElement("audio");
-  // canPlayType answers "probably", "maybe" or "" — anything but empty is
-  // worth trying, and the MP3 is there for when nothing is.
-  return (SOURCES.find((s) => probe.canPlayType(s.type)) ?? SOURCES[1]).src;
-}
+const SRC = "/flute.m4a";
 
 const REMEMBER = "utsavkosh:flute";
 
@@ -82,7 +80,7 @@ export function Flute() {
     const refused = localStorage.getItem(REMEMBER) === "0";
     setAsked(!refused);
 
-    const el = new Audio(bestSource());
+    const el = new Audio(SRC);
     el.loop = true;
     el.volume = VOLUME;
     // Nothing is fetched until it is actually going to play. Someone who opens
