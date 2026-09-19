@@ -45,8 +45,22 @@ const SRC = "/flute.m4a";
 
 const REMEMBER = "utsavkosh:flute";
 
-/** Quiet. This is background, and someone else chose to hear it, not to be told. */
-const VOLUME = 0.35;
+/**
+ * Very quiet — about eighteen decibels down, and the track itself peaks below
+ * full scale, so it sits a long way under anything else the phone might play.
+ * This is background for a page about money. It should be the thing someone
+ * notices second, if at all, and never the thing they reach for the side of
+ * the phone to deal with.
+ */
+const VOLUME = 0.12;
+
+/**
+ * And it arrives rather than starts. Coming in at full level the moment
+ * somebody flicks the donations list is a jolt, however quiet the level is;
+ * over three seconds from silence it is just something that was already there.
+ */
+const FADE_MS = 3000;
+const FADE_STEP_MS = 50;
 
 export function Flute() {
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -63,6 +77,9 @@ export function Flute() {
    * just said no.
    */
   const disarmRef = useRef<() => void>(() => {});
+  const fadeRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** So the button can fade in too, not only the scroll that starts it. */
+  const fadeInRef = useRef<() => void>(() => {});
 
   const [broken, setBroken] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -94,6 +111,27 @@ export function Flute() {
      * goes to the background: the element pauses and nothing tells the page.
      * If the listener never asked for silence, ask for the sound back.
      */
+    /** Ease up to VOLUME from wherever the element currently is. */
+    function fadeIn() {
+      if (fadeRef.current) clearInterval(fadeRef.current);
+      const el = audio.current;
+      if (!el) return;
+      el.volume = 0;
+      const step = VOLUME / (FADE_MS / FADE_STEP_MS);
+      fadeRef.current = setInterval(() => {
+        const a = audio.current;
+        if (!a) return;
+        const next = Math.min(VOLUME, a.volume + step);
+        a.volume = next;
+        if (next >= VOLUME && fadeRef.current) {
+          clearInterval(fadeRef.current);
+          fadeRef.current = null;
+        }
+      }, FADE_STEP_MS);
+    }
+
+    fadeInRef.current = fadeIn;
+
     function resume() {
       if (!wants.current || !audio.current || document.hidden) return;
       void audio.current.play().catch(() => {});
@@ -133,6 +171,7 @@ export function Flute() {
         .play()
         .then(() => {
           setPlaying(true);
+          fadeIn();
           disarm();
         })
         // Refused for want of a gesture. Leave the listeners armed; the next
@@ -157,6 +196,7 @@ export function Flute() {
     return () => {
       wants.current = false;
       disarm();
+      if (fadeRef.current) clearInterval(fadeRef.current);
       el.removeEventListener("pause", onPause);
       el.removeEventListener("error", onError);
       document.removeEventListener("visibilitychange", resume);
@@ -195,6 +235,7 @@ export function Flute() {
           .then(() => {
             setPlaying(true);
             setAsked(true);
+            fadeInRef.current();
             localStorage.setItem(REMEMBER, "1");
           })
           // Refused by the browser, or the file will not decode. Either way,
