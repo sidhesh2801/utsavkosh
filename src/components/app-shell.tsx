@@ -256,7 +256,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
 
-        <main className="min-w-0 flex-1 pb-24 md:pb-6">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="min-w-0 flex-1">{children}</main>
+
+          {/* Bottom padding clears the phone's tab bar, which is fixed over
+              the last few rows of the page. */}
+          <footer className="mt-10 border-t border-line pb-24 pt-5 text-center md:pb-6">
+            <p className="text-[0.6875rem] leading-relaxed text-ink-faint">
+              UtsavKosh · built for {data.society.name} by Sidhesh Kumar
+            </p>
+            <p className="mt-0.5 text-[0.6875rem] text-ink-faint">
+              © {new Date().getFullYear()}
+            </p>
+          </footer>
+        </div>
       </div>
 
       {/* Mobile tab bar */}
