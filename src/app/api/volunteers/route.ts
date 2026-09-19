@@ -161,14 +161,19 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle();
 
+  // Asks for the id back and nothing else. Selecting the full column list
+  // made adding a volunteer fail with "column volunteers.sort does not exist"
+  // in the window between deploying migration 014's code and running the
+  // migration — a write that worked, reported as a write that did not. The
+  // page reloads the list afterwards regardless, so the row is not needed.
   const { data, error } = await db
     .from("volunteers")
     .insert({ ...v, activity_id: activity?.id ?? null })
-    .select(COLUMNS)
+    .select("id")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, volunteer: data });
+  return NextResponse.json({ ok: true, id: data.id });
 }
 
 /** Either sign-in: a volunteer fixing their own wording shouldn't need help. */
