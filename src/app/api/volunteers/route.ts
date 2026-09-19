@@ -31,7 +31,7 @@ function admin() {
   });
 }
 
-const COLUMNS = "id, name, wing, flat, role, note, created_at";
+const COLUMNS = "id, name, wing, flat, role, note, photo_url, created_at";
 
 interface Body {
   id?: string;
@@ -40,6 +40,7 @@ interface Body {
   flat?: string;
   role?: string;
   note?: string;
+  photoUrl?: string;
 }
 
 /** Anyone. Reads with the anon key, so the table's own grants decide. */
@@ -51,21 +52,28 @@ export async function GET() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await supabase
-    .from("volunteers")
-    .select(COLUMNS)
-    .order("created_at")
-    .limit(1000);
+  const read = (columns: string) =>
+    supabase.from("volunteers").select(columns).order("created_at").limit(1000);
+
+  let { data, error } = await read(COLUMNS);
+
+  // Migration 013 adds photo_url. Between deploying this and running it, the
+  // select above fails on the missing column — and the thanks page going blank
+  // over a picture nobody has uploaded yet is a bad trade. Ask again without it.
+  if (error) ({ data, error } = await read(COLUMNS.replace(", photo_url", "")));
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+
   return NextResponse.json({
-    volunteers: (data ?? []).map((v) => ({
+    volunteers: rows.map((v) => ({
       id: String(v.id),
       name: String(v.name),
       flat: [v.wing, v.flat].filter(Boolean).join("-"),
       role: String(v.role),
       note: v.note ? String(v.note) : "",
+      photoUrl: v.photo_url ? String(v.photo_url) : "",
     })),
   });
 }
@@ -78,6 +86,13 @@ const SIGN_IN = "Sign in as a volunteer to write on this page.";
  */
 const LIMIT = { name: 60, role: 60, note: 400 };
 
+function photoUrl(raw: string | undefined): string | null {
+  const url = (raw ?? "").trim();
+  if (!url) return null;
+  const ours = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/faces/`;
+  return url.startsWith(ours) ? url : null;
+}
+
 function parse(body: Body) {
   const name = (body.name ?? "").trim().slice(0, LIMIT.name);
   const role = (body.role ?? "").trim().slice(0, LIMIT.role);
@@ -88,6 +103,10 @@ function parse(body: Body) {
     wing: (body.wing ?? "").trim().toUpperCase().slice(0, 4) || flat?.[1] || null,
     flat: flat?.[2] ?? (body.flat ?? "").replace(/\D/g, "") ?? null,
     note: (body.note ?? "").trim().slice(0, LIMIT.note) || null,
+    // Only a URL this app issued. The column is rendered into an <img> on a
+    // page everyone reads, so an arbitrary string here is an arbitrary host
+    // watching every visitor — and `javascript:` is worse than that.
+    photo_url: photoUrl(body.photoUrl),
   };
 }
 

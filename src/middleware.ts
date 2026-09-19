@@ -31,6 +31,7 @@ const OPEN_TO_ALL = [
   "/ledger",
   "/volunteers",
   "/api/volunteers",
+  "/api/collage",
   "/receipt.html",
   "/generator-login",
   "/maintenance.html",

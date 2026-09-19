@@ -17,7 +17,15 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  /* config options here */
+  /**
+   * Photographs volunteers upload live in Supabase Storage, so the optimiser
+   * has to be told that host is allowed. Without this every collage picture is
+   * a 403 — and with `unoptimized` instead, every one of them is a four
+   * megabyte download on a phone.
+   */
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/**" }],
+  },
 };
 
 export default nextConfig;

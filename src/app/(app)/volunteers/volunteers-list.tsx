@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -20,6 +21,7 @@ interface Volunteer {
   flat: string;
   role: string;
   note: string;
+  photoUrl: string;
 }
 
 /**
@@ -91,7 +93,7 @@ export function VolunteersList({ photos }: { photos: string[] }) {
       />
 
       {/* The evening itself, above the people who made it happen. */}
-      <FestivalCollage photos={photos} />
+      <FestivalCollage photos={photos} canEdit={canWrite} />
 
       {people.length ? (
         <div className="space-y-7">
@@ -106,17 +108,27 @@ export function VolunteersList({ photos }: { photos: string[] }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 {members.map((v) => (
                   <Card key={v.id} className="p-4">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <p className="min-w-0 text-[0.9375rem] font-semibold text-ink">{v.name}</p>
-                      {v.flat ? (
-                        <span className="tnum shrink-0 text-xs text-ink-faint">{v.flat}</span>
-                      ) : null}
+                    <div className="flex items-start gap-3">
+                      {/* Optional, and a missing one must not read as a fault:
+                          plenty of people will not want their face on a page
+                          the whole society can open. Their initial stands in. */}
+                      <Face name={v.name} url={v.photoUrl} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="min-w-0 text-[0.9375rem] font-semibold text-ink">
+                            {v.name}
+                          </p>
+                          {v.flat ? (
+                            <span className="tnum shrink-0 text-xs text-ink-faint">{v.flat}</span>
+                          ) : null}
+                        </div>
+                        {v.note ? (
+                          <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink-soft">
+                            {v.note}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                    {v.note ? (
-                      <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-soft">
-                        {v.note}
-                      </p>
-                    ) : null}
                     {canWrite ? (
                       <p className="mt-3 flex gap-3">
                         <button
@@ -183,6 +195,35 @@ export function VolunteersList({ photos }: { photos: string[] }) {
   );
 }
 
+/**
+ * A volunteer's picture, or the letter their name starts with.
+ *
+ * The fallback is not a placeholder-person icon. Forty identical grey
+ * silhouettes read as forty missing photographs; forty initials read as a list
+ * of people. A photo here is optional and should stay comfortable to skip.
+ */
+function Face({ name, url, size = 44 }: { name: string; url?: string; size?: number }) {
+  if (url) {
+    return (
+      <span
+        className="relative block shrink-0 overflow-hidden rounded-full bg-surface-sunken ring-1 ring-line"
+        style={{ width: size, height: size }}
+      >
+        <Image src={url} alt="" fill sizes={`${size}px`} className="object-cover" />
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="grid shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-brand-ink"
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+    >
+      {name.trim().charAt(0).toUpperCase() || "?"}
+    </span>
+  );
+}
+
 function RemoveVolunteer({
   id,
   name,
@@ -245,8 +286,28 @@ function VolunteerSheet({
   const [flat, setFlat] = useState(existing?.flat ?? "");
   const [role, setRole] = useState(existing?.role ?? "");
   const [note, setNote] = useState(existing?.note ?? "");
+  const [photoUrl, setPhotoUrl] = useState(existing?.photoUrl ?? "");
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  /**
+   * Uploaded as soon as it is chosen, and saved onto the row only when the
+   * form is. A picture that appears in the sheet but is still sitting in the
+   * browser when Save is pressed is a picture the page never gets.
+   */
+  async function choose(file: File) {
+    setError(null);
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/volunteers/photo", { method: "POST", body: form });
+    const payload = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+    setUploading(false);
+    if (!res.ok || !payload.url) return setError(payload.error ?? "That photo didn't upload.");
+    setPhotoUrl(payload.url);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -255,7 +316,14 @@ function VolunteerSheet({
     const res = await fetch("/api/volunteers", {
       method: existing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...(existing ? { id: existing.id } : {}), name, flat, role, note }),
+      body: JSON.stringify({
+        ...(existing ? { id: existing.id } : {}),
+        name,
+        flat,
+        role,
+        note,
+        photoUrl,
+      }),
     });
     const payload = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {
@@ -285,6 +353,44 @@ function VolunteerSheet({
       }
     >
       <form onSubmit={submit} className="space-y-3.5">
+        <div className="flex items-center gap-3.5">
+          <Face name={name || "?"} url={photoUrl} size={56} />
+          <div className="min-w-0">
+            <input
+              ref={picker}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void choose(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => picker.current?.click()}
+              className="text-[0.8125rem] font-medium text-brand underline decoration-brand/30 underline-offset-2 disabled:opacity-50"
+            >
+              {uploading ? "Uploading…" : photoUrl ? "Change photo" : "Add your photo"}
+            </button>
+            {photoUrl ? (
+              <button
+                type="button"
+                onClick={() => setPhotoUrl("")}
+                className="ml-3 text-[0.8125rem] font-medium text-ink-faint underline decoration-line underline-offset-2"
+              >
+                Remove
+              </button>
+            ) : (
+              <p className="mt-0.5 text-[0.6875rem] text-ink-faint">
+                Optional — so people can put a face to the name.
+              </p>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
             <Field label="Name" required>
